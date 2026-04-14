@@ -1121,7 +1121,8 @@ const anatomy = [
 const heartGroup = new THREE.Group();
 heartGroup.rotation.y = Math.PI / 12;
 scene.add(heartGroup);
-let heartReady = false;
+let heartReady     = false;
+let iglooAnimating = true; // blocks heartbeatScale from fighting scale tween
 
 new FBXLoader().load(
   './Heart.fbx',
@@ -1260,9 +1261,10 @@ new FBXLoader().load(
       ease: 'back.out(1.4)',
     }, 1.8);
 
-    // Phase 5: clean up igloo, camera settles
+    // Phase 5: clean up igloo, unlock heartbeat animation
     tl.add(() => {
       scene.remove(iglooGroup);
+      iglooAnimating = false;
     }, 2.9);
 
     gsap.to(camT, { z: 6, duration: 2.8, ease: 'power2.out', delay: 0.4 });
@@ -1778,8 +1780,8 @@ let chromaVelocity = 0;
   const curScrollY  = lenis.scroll || 0;
   const scrollDelta = Math.abs(curScrollY - lastScrollY);
   lastScrollY = curScrollY;
-  chromaVelocity += (scrollDelta * 0.00015 - chromaVelocity) * 0.12;
-  chromaPass.uniforms.uStrength.value = 0.0008 + chromaVelocity;
+  chromaVelocity += (scrollDelta * 0.0015 - chromaVelocity) * 0.12;
+  chromaPass.uniforms.uStrength.value = Math.min(0.0015 + chromaVelocity, 0.008);
   grainPass.uniforms.uTime.value = elapsed * 0.8;
 
   if (heartReady) {
@@ -1794,7 +1796,7 @@ let chromaVelocity = 0;
       heartGroup.rotation.y = mouseParaX + Math.sin(elapsed * 0.22) * 0.08;
       heartGroup.rotation.x = mouseParaY * -1 + floatY;
     }
-    heartbeatScale(dt);
+    if (!iglooAnimating) heartbeatScale(dt);
   }
 
   // Camera target
