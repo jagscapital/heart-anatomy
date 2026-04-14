@@ -97,27 +97,28 @@
       width: 100%; height: 100%;
     }
 
-    /* Glowing dot (12px, CSS pulse ring) */
+    /* Glowing dot (8px, subtle igloo-style ring) */
     .a-dot {
       position: absolute;
-      width: 12px; height: 12px;
+      width: 8px; height: 8px;
       border-radius: 50%;
       background: var(--red);
       transform: translate(-50%, -50%);
       opacity: 0;
       transition: opacity 0.45s ease;
+      box-shadow: 0 0 6px rgba(232,35,58,0.8);
     }
     .a-dot::after {
       content: '';
       position: absolute;
-      inset: -4px;
+      inset: -5px;
       border-radius: 50%;
-      border: 1.5px solid rgba(232,35,58,0.5);
-      animation: dot-pulse 1.4s ease-out infinite;
+      border: 1px solid rgba(232,35,58,0.5);
+      animation: dot-pulse 2.0s ease-out infinite;
     }
     @keyframes dot-pulse {
-      0%   { transform: scale(1);   opacity: 0.8; }
-      100% { transform: scale(1.9); opacity: 0; }
+      0%   { transform: scale(1);    opacity: 0.6; }
+      100% { transform: scale(1.35); opacity: 0; }
     }
 
     /* Part name (Title Case, near the dot) */
@@ -416,17 +417,29 @@
     body:hover #cursor-outer { border-color: rgba(232,35,58,0.75); }
 
     /* ─────────────────────────────────────────────
-       EKG BAR  (fixed bottom, PQRST waveform)
+       EKG BAR  (fixed bottom, centered, premium)
     ───────────────────────────────────────────── */
     #ekg-bar {
       position: fixed;
-      bottom: 0; left: 0;
-      width: 100%; height: 48px;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: min(600px, 80vw);
+      height: 44px;
       z-index: 15;
       pointer-events: none;
       opacity: 0;
       transition: opacity 0.8s ease;
     }
+    #ekg-bar::before, #ekg-bar::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 60px;
+      z-index: 1;
+    }
+    #ekg-bar::before { left: 0;  background: linear-gradient(to right, rgba(5,5,10,1), transparent); }
+    #ekg-bar::after  { right: 0; background: linear-gradient(to left,  rgba(5,5,10,1), transparent); }
     #ekg-bar.visible { opacity: 1; }
     #ekg-canvas {
       width: 100%; height: 100%;
@@ -643,7 +656,7 @@ const lenis = new Lenis({
   duration:        1.6,
   easing:          (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
   smoothWheel:     true,
-  wheelMultiplier: 0.72,
+  wheelMultiplier: 0.88,   // BOT-10: 0.72→0.88, slides into orbit not mud
   touchMultiplier: 1.4,
   infinite:        false,
 });
@@ -671,8 +684,8 @@ lenis.on('scroll', ScrollTrigger.update);
   });
   (function animCursor() {
     requestAnimationFrame(animCursor);
-    ox += (cx - ox) * 0.12;
-    oy += (cy - oy) * 0.12;
+    ox += (cx - ox) * 0.20; // was 0.12 — much more responsive
+    oy += (cy - oy) * 0.20;
     outer.style.transform = `translate(${ox - 20}px, ${oy - 20}px)`;
   })();
 }
@@ -692,7 +705,7 @@ const DPR = Math.min(window.devicePixelRatio, 2); // cap at 2 — bot debate win
 renderer.setPixelRatio(DPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping        = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.6;
+renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled  = true;
 renderer.shadowMap.type     = THREE.PCFSoftShadowMap;
 
@@ -705,9 +718,9 @@ composer.addPass(renderPass);
 
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  1.2,   // strength  (debate: was 0.55 → raised to 1.2 for 4K pop)
-  0.4,   // radius
-  0.2    // threshold (raised from 0.15 to prevent ambient bleed)
+  0.35,  // strength  — only true specular peaks bloom
+  0.30,  // radius    — tight, no spread bleed
+  0.55   // threshold — well above surface color, below specular peaks
 );
 composer.addPass(bloom);
 
@@ -717,6 +730,61 @@ fxaaPass.uniforms['resolution'].value.set(
   1 / (window.innerHeight * DPR)
 );
 composer.addPass(fxaaPass);
+
+// Chromatic aberration — RGB channel split, velocity-reactive
+const chromaPass = new ShaderPass({
+  uniforms: {
+    tDiffuse:  { value: null },
+    uStrength: { value: 0.0008 }, // always-on subtle split
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uStrength;
+    varying vec2 vUv;
+    void main() {
+      vec2 dir = vUv - 0.5;
+      float r = texture2D(tDiffuse, vUv + dir * uStrength * 1.5).r;
+      float g = texture2D(tDiffuse, vUv).g;
+      float b = texture2D(tDiffuse, vUv - dir * uStrength * 1.5).b;
+      gl_FragColor = vec4(r, g, b, 1.0);
+    }
+  `,
+});
+composer.addPass(chromaPass);
+
+// Film grain — animated noise layer
+const grainPass = new ShaderPass({
+  uniforms: {
+    tDiffuse: { value: null },
+    uTime:    { value: 0 },
+    uAmount:  { value: 0.028 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uTime;
+    uniform float uAmount;
+    varying vec2 vUv;
+    float rand(vec2 co) {
+      return fract(sin(dot(co + uTime, vec2(12.9898,78.233))) * 43758.5453);
+    }
+    void main() {
+      vec4 color = texture2D(tDiffuse, vUv);
+      float grain = rand(vUv) * uAmount - uAmount * 0.5;
+      color.rgb += grain;
+      gl_FragColor = color;
+    }
+  `,
+});
+composer.addPass(grainPass);
+
 composer.addPass(new OutputPass());
 
 // ============================================================
@@ -745,7 +813,7 @@ pmremGen.dispose();
 // ============================================================
 scene.add(new THREE.AmbientLight(0x1a0008, 3));
 
-const keyLight = new THREE.DirectionalLight(0xffaaaa, 3.0); // warm key
+const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.8); // warm key
 keyLight.position.set(3, 5, 4);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);           // debate: 2048 won
@@ -793,34 +861,33 @@ const heartMat = new THREE.MeshStandardMaterial({
   normalMap:       TEX.norm,
   metalnessMap:    TEX.metal,
   roughnessMap:    TEX.rough,
-  normalScale:     new THREE.Vector2(1.2, 1.2),
-  metalness:       0.0,   // cardiac muscle: zero metallic properties
-  roughness:       0.38,  // slightly glossy wet-tissue look
-  envMapIntensity: 1.2,
+  normalScale:     new THREE.Vector2(0.8, 0.8), // was 1.2 — match bake intent
+  metalness:       0.0,
+  roughness:       0.68,  // wet cardiac tissue range (0.65–0.72)
+  envMapIntensity: 0.9,   // pulled back — not a mirror
 });
 
-// Fresnel rim via onBeforeCompile
+// Fresnel rim — razor-thin, well below bloom threshold
 heartMat.onBeforeCompile = (shader) => {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <dithering_fragment>',
     `#include <dithering_fragment>
-    // Fresnel rim glow (vViewPosition = -mvPosition.xyz in Three.js r160)
     float fresnelDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
-    float fresnel = pow(1.0 - fresnelDot, 3.5);
-    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.55;`
+    float fresnel = pow(1.0 - fresnelDot, 5.0);
+    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.12;`
   );
 };
 
-// SSS shell (subsurface scattering approximation — BackSide, additive)
+// SSS shell — warmth whisper, NOT a glowing orb
 const sssMat = new THREE.MeshStandardMaterial({
-  color:       0xff2244,
-  emissive:    new THREE.Color(0xff1133),
-  emissiveIntensity: 0.18,
-  side:        THREE.BackSide,
-  transparent: true,
-  opacity:     0.12,
-  depthWrite:  false,
-  blending:    THREE.AdditiveBlending,
+  color:             0xff2244,
+  emissive:          new THREE.Color(0xff1133),
+  emissiveIntensity: 0.06,  // was 0.18
+  side:              THREE.BackSide,
+  transparent:       true,
+  opacity:           0.06,  // was 0.12
+  depthWrite:        false,
+  blending:          THREE.AdditiveBlending,
 });
 
 // ============================================================
@@ -871,7 +938,7 @@ const anatomy = [
     id: 'aorta',
     name: 'Aorta',
     text: "The aorta is the biggest blood vessel in your body. It carries fresh, oxygen-rich blood out of the heart and delivers it everywhere — your brain, arms, and legs.",
-    worldOffset: new THREE.Vector3(-0.18, 1.05, 0.28),
+    worldOffset: new THREE.Vector3(-0.22, 1.20, 0.35),  // top arch, slightly left
     color: '#e8233a',
     side: 'left',
   },
@@ -879,7 +946,7 @@ const anatomy = [
     id: 'pulmonary-artery',
     name: 'Pulmonary Artery',
     text: "This artery sends blood to your lungs so it can pick up fresh oxygen — like a pit stop. It is the only artery in your body that carries oxygen-poor blood.",
-    worldOffset: new THREE.Vector3(0.44, 0.88, 0.22),
+    worldOffset: new THREE.Vector3(0.65, 0.80, 0.30),   // top right, separated from aorta
     color: '#c92030',
     side: 'right',
   },
@@ -887,7 +954,7 @@ const anatomy = [
     id: 'left-atrium',
     name: 'Left Atrium',
     text: "Fresh blood comes back from your lungs full of oxygen. It enters the left atrium first. Then the heart sends it to the left ventricle to be pumped out to your whole body.",
-    worldOffset: new THREE.Vector3(-0.74, 0.18, -0.18),
+    worldOffset: new THREE.Vector3(-0.82, 0.22, -0.25), // upper left, back side
     color: '#e03040',
     side: 'left',
   },
@@ -895,7 +962,7 @@ const anatomy = [
     id: 'right-atrium',
     name: 'Right Atrium',
     text: "Used blood from all over your body arrives here. The right atrium collects it and passes it along to the right ventricle. From there, it heads to the lungs for a fresh oxygen refill.",
-    worldOffset: new THREE.Vector3(0.76, 0.12, 0.22),
+    worldOffset: new THREE.Vector3(0.85, 0.18, 0.30),   // upper right
     color: '#b01c2a',
     side: 'right',
   },
@@ -903,7 +970,7 @@ const anatomy = [
     id: 'left-ventricle',
     name: 'Left Ventricle',
     text: "This is the heart's strongest pump. It squeezes hard to push blood from your heart all the way to your fingertips and toes. Its walls are extra thick because it works the hardest.",
-    worldOffset: new THREE.Vector3(-0.50, -0.68, 0.20),
+    worldOffset: new THREE.Vector3(-0.55, -0.88, 0.25), // lower left bulk
     color: '#d52033',
     side: 'left',
   },
@@ -911,7 +978,7 @@ const anatomy = [
     id: 'right-ventricle',
     name: 'Right Ventricle',
     text: "The right ventricle pumps blood to your lungs. The lungs are close by, so this chamber doesn't need to work as hard. Even so, it pumps about 100,000 times every single day.",
-    worldOffset: new THREE.Vector3(0.52, -0.52, 0.38),
+    worldOffset: new THREE.Vector3(0.58, -0.72, 0.42),  // lower right front
     color: '#a8182a',
     side: 'right',
   },
@@ -1009,14 +1076,15 @@ function buildLabels() {
     tab.innerHTML = `<div class="a-tab-name">${a.name}</div><div class="a-tab-text">${a.text}</div>`;
     overlay.appendChild(tab);
 
-    // SVG line with glow filter
-    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    // SVG curved bezier path (igloo style — elegant arc, not ruler line)
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     line.id = `ln-${a.id}`;
     line.setAttribute('stroke', a.color);
     line.setAttribute('stroke-width', '1');
-    line.setAttribute('stroke-dasharray', '5 6');
+    line.setAttribute('stroke-dasharray', '4 5');
+    line.setAttribute('fill', 'none');
     line.setAttribute('opacity', '0');
-    line.style.filter = 'drop-shadow(0 0 4px rgba(232,35,58,0.65))';
+    line.style.filter = 'drop-shadow(0 0 3px ' + a.color + ')';
     line.style.transition = 'opacity 0.4s ease';
     svgEl.appendChild(line);
 
@@ -1056,10 +1124,12 @@ function updateLabelPositions() {
 
     const lx2 = a.side === 'right' ? tabX : tabX + TAB_W;
     const ly2 = tabY + 34;
-    el.line.setAttribute('x1', sx);
-    el.line.setAttribute('y1', sy);
-    el.line.setAttribute('x2', lx2);
-    el.line.setAttribute('y2', ly2);
+    // Curved bezier: control point perpendicular to line midpoint
+    const mx = (sx + lx2) / 2;
+    const my = (sy + ly2) / 2;
+    const cpx = mx + (ly2 - sy) * 0.25; // perpendicular offset
+    const cpy = my - (lx2 - sx) * 0.25;
+    el.line.setAttribute('d', `M ${sx} ${sy} Q ${cpx} ${cpy} ${lx2} ${ly2}`);
   });
 }
 
@@ -1174,7 +1244,7 @@ function setupScroll() {
     end:        `+=${SCROLL_PX}`,
     pin:        true,
     pinSpacing: true,
-    scrub:      true,  // boolean — Lenis handles momentum, no GSAP scrub lag
+    scrub:      0.3,   // tiny lag gives cinematic weight without molasses feel
     onUpdate(self) {
       scrollProg = self.progress;
       inSpiral   = true;
@@ -1303,13 +1373,13 @@ const camT = { x:0, y:0, z:14 }; // starts at 14 for cinematic intro
 const CAM_LAMBDA = 6.0; // tighter since Lenis already smooths input
 
 function spiralCamera(p) {
-  // Inward spiral: radius 6.5 → 4.2 over journey (commits inward)
   const theta  = p * Math.PI * 4;
-  const radius = 6.5 - p * 2.3;
-  // Increased vertical amplitude 0.55 rad (was 0.26) — camera dips below & rises above
+  // Inward spiral + chaos wobble (secondary oscillation = organic, not geometric)
+  const wobble = Math.sin(p * Math.PI * 7) * 0.18;
+  const radius = 6.5 - p * 2.3 + wobble;
   const phi    = Math.sin(p * Math.PI * 2) * 0.55;
   camT.x = Math.sin(theta) * radius * Math.cos(phi);
-  camT.y = Math.sin(phi)   * radius + (p * -0.4); // slight downward drift
+  camT.y = Math.sin(phi)   * radius + (p * -0.4);
   camT.z = Math.cos(theta) * radius;
 }
 
@@ -1405,14 +1475,19 @@ soundBtn.addEventListener('click', () => {
   }
 
   const EKG_DPR = Math.min(devicePixelRatio, 2);
-  // Size canvas once
-  ekgCanvas.width  = window.innerWidth  * EKG_DPR;
-  ekgCanvas.height = 48 * EKG_DPR;
-  ekgCtx.scale(EKG_DPR, EKG_DPR);
+  function resizeEKG() {
+    const W = ekgCanvas.offsetWidth || Math.min(600, window.innerWidth * 0.8);
+    const H = 44;
+    ekgCanvas.width  = W * EKG_DPR;
+    ekgCanvas.height = H * EKG_DPR;
+    ekgCtx.setTransform(EKG_DPR, 0, 0, EKG_DPR, 0, 0);
+  }
+  resizeEKG();
+  window.addEventListener('resize', resizeEKG);
 
   function drawEKG() {
-    const W = window.innerWidth;
-    const H = 48;
+    const W = ekgCanvas.offsetWidth || Math.min(600, window.innerWidth * 0.8);
+    const H = 44;
     ekgCtx.clearRect(0, 0, W, H);
     ekgCtx.strokeStyle = '#22c55e';
     ekgCtx.lineWidth   = 1.5;
@@ -1445,13 +1520,29 @@ soundBtn.addEventListener('click', () => {
 //  RENDER LOOP
 // ============================================================
 const clock = new THREE.Clock();
+let lastScrollY = 0;
+let chromaVelocity = 0;
 
 (function render() {
   requestAnimationFrame(render);
   const dt = clock.getDelta();
 
+  // Scroll velocity → chromatic aberration spike
+  const curScrollY = lenis.scroll || 0;
+  const scrollDelta = Math.abs(curScrollY - lastScrollY);
+  lastScrollY = curScrollY;
+  chromaVelocity += (scrollDelta * 0.00015 - chromaVelocity) * 0.12;
+  chromaPass.uniforms.uStrength.value = 0.0008 + chromaVelocity;
+  grainPass.uniforms.uTime.value = clock.elapsedTime * 0.8;
+
   if (heartReady) {
-    heartGroup.rotation.y += dt * 0.20;   // gentle idle spin (45° over ~14s — debate spec)
+    heartGroup.rotation.y += dt * (inSpiral ? 0.35 : 0.20); // faster during spiral
+    if (inSpiral) {
+      // Subtle X wobble — heart tumbles slightly as camera orbits
+      heartGroup.rotation.x = Math.sin(clock.elapsedTime * 0.4) * 0.06;
+    } else {
+      heartGroup.rotation.x = THREE.MathUtils.damp(heartGroup.rotation.x, 0, 2, dt);
+    }
     heartbeatScale(dt);
   }
 
