@@ -861,8 +861,8 @@ superiorRim.position.set(0, 8, 2);
 superiorRim.castShadow = false;
 scene.add(superiorRim);
 
-const glowLight = new THREE.PointLight(0xff2244, 6, 7);
-glowLight.position.set(0, 0, 1.2);
+const glowLight = new THREE.PointLight(0xff2244, 1.2, 4);
+glowLight.position.set(0, 0.5, 2.5);
 scene.add(glowLight);
 
 // ============================================================
@@ -906,10 +906,10 @@ heartMat.onBeforeCompile = (shader) => {
 const sssMat = new THREE.MeshStandardMaterial({
   color:             0xff2244,
   emissive:          new THREE.Color(0xff1133),
-  emissiveIntensity: 0.06,
+  emissiveIntensity: 0.0,
   side:              THREE.BackSide,
   transparent:       true,
-  opacity:           0.06,
+  opacity:           0.04,
   depthWrite:        false,
   blending:          THREE.AdditiveBlending,
 });
@@ -1397,8 +1397,8 @@ function setupScroll() {
     trigger: '#outro', start: 'top 72%', once: true,
     onEnter() {
       gsap.timeline()
-        .to(glowLight, { intensity: 22, duration: 0.12, ease: 'power4.in' })
-        .to(glowLight, { intensity:  5, duration: 0.8,  ease: 'power2.out' });
+        .to(glowLight, { intensity: 2.5, duration: 0.18, ease: 'power2.in' })
+        .to(glowLight, { intensity: 1.2, duration: 1.0,  ease: 'power2.out' });
     },
   });
 }
@@ -1514,8 +1514,8 @@ function heartbeatScale(dt) {
   const targetZRock = Math.sin(beatPhase) * 0.04;
   heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
 
-  // BOT-02: breathing glow — wide range, floor ~0.5 (clamped), peak ~7.5
-  glowLight.intensity = Math.max(0.5, 3.0 + Math.sin(beatPhase) * 4.5);
+  // Subtle fill only — no pulsing glow, no neon effect
+  glowLight.intensity = 1.2 + beat * 0.8; // barely perceptible warmth on the beat
 }
 
 // Synthetic heartbeat via Web Audio API (no audio file needed)
@@ -1644,17 +1644,14 @@ let chromaVelocity = 0;
   grainPass.uniforms.uTime.value = elapsed * 0.8;
 
   if (heartReady) {
-    // BOT-01: faster Y rotation — 0.45 idle / 0.55 spiral (was 0.20 / 0.35)
-    // At 0.45 rad/s idle: one full rotation in ~14s. Clearly perceptible.
-    heartGroup.rotation.y += dt * (inSpiral ? 0.55 : 0.45);
-
-    if (inSpiral) {
-      heartGroup.rotation.x = Math.sin(elapsed * 0.4) * 0.06;
-    } else {
-      heartGroup.rotation.x = THREE.MathUtils.damp(heartGroup.rotation.x, 0, 2, dt);
+    // Idle: gentle float/rock — NO continuous spin. Heart sways like it's suspended.
+    if (!inSpiral) {
+      heartGroup.rotation.y  = Math.sin(elapsed * 0.22) * 0.18; // slow side-to-side rock
+      heartGroup.rotation.x  = Math.sin(elapsed * 0.15) * 0.06; // subtle tilt
     }
+    // During spiral: camera orbits the heart, heart itself just keeps its rock
+    // (camera movement creates the orbit illusion without nauseating spin)
 
-    // heartbeatScale manages scale (multi-axis), rotation.z (apex rock), and glowLight
     heartbeatScale(dt);
   }
 
