@@ -820,8 +820,8 @@ composer.addPass(new OutputPass());
 //  SCENE & CAMERA
 // ============================================================
 const scene  = new THREE.Scene();
-scene.background = new THREE.Color(0x05050a);
-scene.fog        = new THREE.FogExp2(0x05050a, 0.05);
+scene.background = new THREE.Color(0x02020c); // deep cool dark — not pure black
+// No fog — it was killing the particles entirely
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
 camera.position.set(0, 0, 14);
@@ -927,13 +927,13 @@ const pPositions = new Float32Array(PARTICLE_COUNT * 3);
 const pVelocities = [];
 
 for (let i = 0; i < PARTICLE_COUNT; i++) {
-  // Spread in a large sphere, z pushed back
-  pPositions[i*3]   = (Math.random()-0.5) * 40;
-  pPositions[i*3+1] = (Math.random()-0.5) * 24;
-  pPositions[i*3+2] = -5 - Math.random() * 30; // behind the heart
+  // Fill entire visible volume — in front of AND behind heart
+  pPositions[i*3]   = (Math.random()-0.5) * 36;
+  pPositions[i*3+1] = (Math.random()-0.5) * 22;
+  pPositions[i*3+2] = (Math.random()-0.5) * 28; // z from -14 to +14
   pVelocities.push({
-    x: (Math.random()-0.5) * 0.002,
-    y: (Math.random()-0.5) * 0.002,
+    x: (Math.random()-0.5) * 0.003,
+    y: (Math.random()-0.5) * 0.003,
     z: (Math.random()-0.5) * 0.001,
   });
 }
@@ -947,17 +947,18 @@ const particleMat = new THREE.ShaderMaterial({
     varying float vDepth;
     void main() {
       vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
-      vDepth = clamp(-mvPos.z / 35.0, 0.0, 1.0); // 0=near, 1=far
+      float dist = length(mvPos.xyz);
+      vDepth = clamp(dist / 20.0, 0.0, 1.0);
       gl_Position  = projectionMatrix * mvPos;
-      gl_PointSize = mix(2.2, 0.6, vDepth);
+      gl_PointSize = mix(3.5, 1.0, vDepth); // near=3.5px, far=1px
     }
   `,
   fragmentShader: `
     varying float vDepth;
     void main() {
       float d = length(gl_PointCoord - 0.5) * 2.0;
-      float a = (1.0 - smoothstep(0.3, 1.0, d)) * mix(0.75, 0.08, vDepth);
-      gl_FragColor = vec4(0.85, 0.90, 1.0, a); // cool white/pale blue
+      float a = (1.0 - smoothstep(0.2, 1.0, d)) * mix(0.9, 0.15, vDepth);
+      gl_FragColor = vec4(0.80, 0.88, 1.0, a); // cool white/pale blue
     }
   `,
   transparent: true,
@@ -1148,12 +1149,121 @@ new FBXLoader().load(
     });
 
     heartGroup.add(fbx);
+    // Heart starts invisible — igloo reveals it
+    heartGroup.scale.setScalar(0);
+    heartGroup.visible = false;
     heartReady = true;
 
     buildLabels();
     buildProgressNav();
     setupScroll();
     setupHeroEntrance();
+
+    // ── Build igloo shell around the hidden heart ──────────────
+    // ~60 glassy ice-block chunks arranged in a dome/igloo shape
+    const iglooGroup = new THREE.Group();
+    scene.add(iglooGroup);
+
+    const blockGeo = new THREE.BoxGeometry(0.42, 0.28, 0.22);
+    const blockMat = new THREE.MeshStandardMaterial({
+      color:       0x88bbdd,
+      emissive:    new THREE.Color(0x1133aa),
+      emissiveIntensity: 0.18,
+      metalness:   0.0,
+      roughness:   0.08,         // very glassy
+      transparent: true,
+      opacity:     0.72,
+      envMapIntensity: 1.4,
+    });
+
+    const iglooBlocks = [];
+    const rows = 5;
+    const IGLOO_R = 2.2; // radius
+
+    for (let row = 0; row < rows; row++) {
+      const phi    = (Math.PI * 0.1) + (row / rows) * (Math.PI * 0.45);
+      const y      = Math.cos(phi) * IGLOO_R * 0.9;
+      const ringR  = Math.sin(phi) * IGLOO_R;
+      const count  = Math.max(5, Math.round(8 + row * 3));
+      for (let j = 0; j < count; j++) {
+        const theta = (j / count) * Math.PI * 2;
+        const mesh  = new THREE.Mesh(blockGeo, blockMat.clone());
+        const tx = Math.sin(theta) * ringR;
+        const tz = Math.cos(theta) * ringR;
+        mesh.position.set(tx, y - 0.5, tz);
+        mesh.rotation.y = -theta;
+        mesh.rotation.x = phi - Math.PI * 0.5;
+        // Store rest + explosion targets
+        mesh.userData.restPos    = mesh.position.clone();
+        mesh.userData.explodeDir = new THREE.Vector3(tx, y + 1, tz).normalize();
+        iglooGroup.add(mesh);
+        iglooBlocks.push(mesh);
+      }
+    }
+
+    // ── Igloo animation sequence ───────────────────────────────
+    // Phase 1 (0–0.8s): igloo assembles from 0 (blocks fly IN)
+    // Phase 2 (0.8–1.5s): pause — igloo glows & pulses
+    // Phase 3 (1.5–2.8s): blocks EXPLODE outward + fade
+    // Phase 4 (2.0s): heart scales in with spring ease
+    const tl = gsap.timeline({ delay: 0.3 });
+
+    // Phase 1: blocks start far out and fly into position
+    iglooBlocks.forEach((b, i) => {
+      const d = b.userData.explodeDir;
+      gsap.set(b.position, {
+        x: d.x * 12, y: d.y * 8, z: d.z * 12,
+      });
+      gsap.set(b.material, { opacity: 0 });
+      tl.to(b.position, {
+        x: b.userData.restPos.x,
+        y: b.userData.restPos.y,
+        z: b.userData.restPos.z,
+        duration: 0.7,
+        ease: 'power3.out',
+        delay: i * 0.012,
+      }, 0);
+      tl.to(b.material, { opacity: 0.72, duration: 0.4, delay: i * 0.012 }, 0);
+    });
+
+    // Phase 2: glow pulse on all blocks
+    tl.to(iglooBlocks.map(b => b.material), {
+      emissiveIntensity: 0.55,
+      duration: 0.35,
+      ease: 'power2.inOut',
+      stagger: 0.008,
+    }, 0.75);
+
+    // Phase 3: explode outward + fade
+    iglooBlocks.forEach((b, i) => {
+      const d = b.userData.explodeDir;
+      tl.to(b.position, {
+        x: d.x * 9, y: d.y * 7 + 2, z: d.z * 9,
+        duration: 0.85,
+        ease: 'power2.in',
+        delay: i * 0.008,
+      }, 1.4);
+      tl.to(b.material, {
+        opacity: 0,
+        duration: 0.5,
+        delay: i * 0.008,
+      }, 1.55);
+    });
+
+    // Phase 4: heart emerges
+    tl.add(() => {
+      heartGroup.visible = true;
+    }, 1.8);
+    tl.to(heartGroup.scale, {
+      x: 1, y: 1, z: 1,
+      duration: 0.9,
+      ease: 'back.out(1.4)',
+    }, 1.8);
+
+    // Phase 5: clean up igloo, camera settles
+    tl.add(() => {
+      scene.remove(iglooGroup);
+    }, 2.9);
 
     gsap.to(camT, { z: 6, duration: 2.8, ease: 'power2.out', delay: 0.4 });
 
