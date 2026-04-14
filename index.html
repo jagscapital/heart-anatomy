@@ -30,7 +30,12 @@
     *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
     html { scroll-behavior:auto; }
     body {
-      background: var(--bg);
+      /* Radial depth gradient — centre slightly lighter, edges darker */
+      background:
+        radial-gradient(ellipse 110% 90% at 50% 42%,
+          #100416 0%,
+          #070210 45%,
+          #030108 100%);
       color: var(--text);
       font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
       overflow-x: hidden;
@@ -145,38 +150,91 @@
       white-space: nowrap;
     }
 
-    /* Info card (WCAG-compliant glassmorphism) */
+    /* ── ANATOMY INFO CARD — premium floating panel ───────────── */
     .a-tab {
       position: absolute;
-      width: 218px;
-      background: var(--card-bg);
-      backdrop-filter: blur(8px) saturate(1.3);
-      -webkit-backdrop-filter: blur(8px) saturate(1.3);
-      border: 1px solid var(--card-border);
-      border-left-width: 3px;
-      border-radius: 10px;
-      padding: 12px 15px 14px;
+      width: 242px;
+      background: rgba(6, 1, 10, 0.88);
+      backdrop-filter: blur(22px) saturate(1.8) brightness(1.1);
+      -webkit-backdrop-filter: blur(22px) saturate(1.8) brightness(1.1);
+      border: 1px solid rgba(232, 35, 58, 0.18);
+      border-left: 2px solid var(--red);
+      border-radius: 12px;
+      padding: 14px 16px 16px;
       opacity: 0;
-      transform: translateY(7px) scale(0.96);
-      transition: opacity 0.55s ease, transform 0.55s ease;
+      transform: translateY(10px) scale(0.94);
+      transition: opacity 0.50s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.50s cubic-bezier(0.22,1,0.36,1);
+      box-shadow:
+        0 0 0 1px rgba(255,255,255,0.04),
+        0 8px 32px rgba(0,0,0,0.55),
+        inset 0 1px 0 rgba(255,255,255,0.05);
+      pointer-events: none;
     }
     .a-tab.show {
       opacity: 1;
       transform: translateY(0) scale(1);
     }
+    /* Warm red glow along the left border */
+    .a-tab::after {
+      content: '';
+      position: absolute;
+      left: -1px; top: 20%; bottom: 20%;
+      width: 2px;
+      background: linear-gradient(to bottom, transparent, var(--red), transparent);
+      border-radius: 2px;
+      filter: blur(2px);
+    }
+    /* Pulse indicator row (PART NAME + live dot) */
+    .a-tab-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 9px;
+    }
+    /* Animated live-beat dot */
+    .a-tab-pulse {
+      flex-shrink: 0;
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--red);
+      box-shadow: 0 0 6px rgba(232,35,58,0.8);
+      animation: tab-beat 0.86s ease-in-out infinite;
+    }
+    @keyframes tab-beat {
+      0%,100% { transform: scale(1);    opacity: 1; }
+      14%      { transform: scale(1.5); opacity: 1; }
+      30%      { transform: scale(1);   opacity: 0.8; }
+      42%      { transform: scale(1.2); opacity: 1; }
+    }
     .a-tab-name {
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-size: 9.5px;
+      font-weight: 800;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       color: var(--red);
-      margin-bottom: 7px;
+      flex: 1;
+    }
+    /* Divider under header */
+    .a-tab-divider {
+      height: 1px;
+      background: linear-gradient(to right, rgba(232,35,58,0.22), transparent);
+      margin-bottom: 10px;
     }
     .a-tab-text {
       font-size: 13px;
       font-weight: 400;
-      line-height: 1.62;
-      color: var(--text-body);
+      line-height: 1.68;
+      color: rgba(200, 185, 190, 0.90);
+      letter-spacing: 0.01em;
+    }
+    /* When backside (hidden anatomy point): fade label */
+    .a-tab.backface {
+      opacity: 0 !important;
+      pointer-events: none;
+    }
+    .a-dot.backface, .a-part-name.backface {
+      opacity: 0 !important;
     }
 
     /* ─────────────────────────────────────────────
@@ -891,14 +949,17 @@ const IS_MOBILE = window.innerWidth < 768;
 //  RENDERER  (antialias:false — FXAA post-pass instead)
 // ============================================================
 const canvas   = document.getElementById('three-canvas');
+// alpha:true → transparent canvas so body gradient + grid SVG show through
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: false,
-  powerPreference: 'high-performance',
+  antialias:         false,
+  alpha:             true,   // transparent background
+  powerPreference:  'high-performance',
 });
 const DPR = Math.min(window.devicePixelRatio, 2);
 renderer.setPixelRatio(DPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);   // fully transparent clear
 renderer.toneMapping        = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 renderer.shadowMap.enabled  = true;
@@ -1016,7 +1077,7 @@ composer.addPass(new OutputPass());
 //  SCENE & CAMERA
 // ============================================================
 const scene  = new THREE.Scene();
-scene.background = new THREE.Color(0x060208); // deep warm dark — heart-biological void
+scene.background = null; // transparent — CSS gradient shows through
 // No fog — it was killing the particles entirely
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
@@ -1625,7 +1686,14 @@ function buildLabels() {
     tab.className = 'a-tab';
     tab.id = `tab-${a.id}`;
     tab.style.borderLeftColor = a.color;
-    tab.innerHTML = `<div class="a-tab-name">${a.name}</div><div class="a-tab-text">${a.text}</div>`;
+    tab.innerHTML = `
+      <div class="a-tab-header">
+        <span class="a-tab-pulse"></span>
+        <span class="a-tab-name">${a.name}</span>
+      </div>
+      <div class="a-tab-divider"></div>
+      <div class="a-tab-text">${a.text}</div>
+    `;
     overlay.appendChild(tab);
 
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
@@ -1650,6 +1718,14 @@ function updateLabelPositions() {
     if (!el.active) return;
 
     const wp  = a.worldOffset.clone().applyQuaternion(heartGroup.quaternion);
+
+    // Back-face cull: hide label when anatomy point faces away from camera
+    const toCamera = camera.position.clone().sub(heartGroup.position).normalize();
+    const isFacing = wp.dot(toCamera) > -0.1;
+    el.tab.classList.toggle('backface', !isFacing);
+    el.dot.classList.toggle('backface', !isFacing);
+    el.pname.classList.toggle('backface', !isFacing);
+
     const ndc = wp.clone().project(camera);
     const sx  = (ndc.x  *  0.5 + 0.5) * window.innerWidth;
     const sy  = (-ndc.y *  0.5 + 0.5) * window.innerHeight;
@@ -1691,7 +1767,7 @@ function showLabel(id) {
   el.tab.classList.add('show');
 
   // igloo.inc letter-scramble: decode the anatomy name on reveal
-  const nameEl = el.tab.querySelector('.a-tab-name');
+  const nameEl = el.tab.querySelector('.a-tab-name'); // inside .a-tab-header
   const aData  = anatomy.find(a => a.id === id);
   if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
 
@@ -1788,7 +1864,7 @@ function setupScroll() {
     end: 'bottom top',
     onUpdate(self) {
       if (!inSpiral) {
-        camT.y = THREE.MathUtils.lerp(0.0, -0.2, self.progress);
+        camT.y = THREE.MathUtils.lerp(0.0, -0.06, self.progress);
         camT.z = THREE.MathUtils.lerp(6.0,  5.4,  self.progress);
       }
     },
@@ -1925,7 +2001,7 @@ function spiralCamera(p) {
   const radius = 6.5 - p * 2.3 + wobble;
   const phi    = Math.sin(p * Math.PI * 2) * 0.55;
   camT.x = Math.sin(theta) * radius * Math.cos(phi);
-  camT.y = Math.sin(phi)   * radius + (p * -0.4);
+  camT.y = Math.sin(phi)   * radius + (p * -0.1);
   camT.z = Math.cos(theta) * radius;
 }
 
@@ -2060,13 +2136,13 @@ let chromaVelocity = 0;
     // Smooth mouse parallax — heart tilts toward cursor (Active Theory signature)
     // lerp 0.04 = ~1-2 second lag, feels magnetic and weighty
     mouseParaX += (mouseNX * 0.30 - mouseParaX) * 0.04;
-    mouseParaY += (mouseNY * 0.20 - mouseParaY) * 0.04;
+    mouseParaY += (mouseNY * 0.08 - mouseParaY) * 0.04;
 
     if (!inSpiral) {
       // Float: slow sinusoidal drift (breathing feel)
       const floatY = Math.sin(elapsed * 0.5) * 0.06;
       heartGroup.rotation.y = mouseParaX + Math.sin(elapsed * 0.22) * 0.08;
-      heartGroup.rotation.x = mouseParaY * -1 + floatY;
+      heartGroup.rotation.x = Math.max(-0.20, Math.min(0.12, mouseParaY * -1 + floatY));
     }
     if (!iglooAnimating) heartbeatScale(dt);
   }
