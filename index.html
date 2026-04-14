@@ -944,11 +944,13 @@ const composer    = new EffectComposer(renderer);
 const renderPass  = new RenderPass(undefined, undefined);
 composer.addPass(renderPass);
 
+// AUDIT FIX 6: threshold 0.55 → 0.48 — catches wet surface specular highlights
+// that were previously below the bloom threshold
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
   0.35,  // strength
-  0.30,  // radius
-  0.55   // threshold
+  0.32,  // radius (slight increase for softer biological glow)
+  0.48   // threshold: was 0.55, lowered to catch wet surface sheen
 );
 composer.addPass(bloom);
 
@@ -1099,48 +1101,59 @@ scene.add(glowLight);
 // ============================================================
 //  PBR TEXTURES
 // ============================================================
+// ── PBR TEXTURES ─────────────────────────────────────────────────────────────
+// AUDIT FIX 1: Explicit colorSpace on every map (agent finding: norm/rough/metal
+//              must be Linear to avoid PBR errors in Three.js r160)
+// AUDIT FIX 2: Metalness file is 589 bytes (solid black = metalness 0.0 everywhere)
+//              → removed metalnessMap, kept metalness:0.0 flat (same result, saves
+//              a GPU texture bind and avoids the broken tiny PNG)
 const tl = new THREE.TextureLoader();
 const TEX = {
   base:  tl.load('./textures/hart_UV_low01_BaseColor.hart_UV_low_defaultMat.png'),
   norm:  tl.load('./textures/hart_UV_low01_Normal.hart_UV_low_defaultMat.png'),
-  metal: tl.load('./textures/hart_UV_low01_Metalness.hart_UV_low_defaultMat.png'),
   rough: tl.load('./textures/hart_UV_low01_Roughness.hart_UV_low_defaultMat.png'),
+  // Metalness NOT loaded — 589-byte file is solid black, equivalent to metalness:0.0
 };
-TEX.base.colorSpace = THREE.SRGBColorSpace;
-[TEX.base, TEX.norm, TEX.metal, TEX.rough].forEach(t => {
+TEX.base.colorSpace  = THREE.SRGBColorSpace;           // BaseColor: sRGB (color data)
+TEX.norm.colorSpace  = THREE.LinearSRGBColorSpace;     // Normal:    Linear (vector data)
+TEX.rough.colorSpace = THREE.LinearSRGBColorSpace;     // Roughness: Linear (scalar data)
+[TEX.base, TEX.norm, TEX.rough].forEach(t => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
 });
 
+// AUDIT FIX 3: roughness 0.68 → 0.52 (wet cardiac tissue is semi-glossy, not matte)
+// AUDIT FIX 4: envMapIntensity 0.9 → 1.2 (more IBL for wet surface sheen)
 const heartMat = new THREE.MeshStandardMaterial({
   map:             TEX.base,
   normalMap:       TEX.norm,
-  metalnessMap:    TEX.metal,
   roughnessMap:    TEX.rough,
   normalScale:     new THREE.Vector2(0.8, 0.8),
   metalness:       0.0,
-  roughness:       0.68,
-  envMapIntensity: 0.9,
+  roughness:       0.52,     // Audit fix: wet tissue, was 0.68
+  envMapIntensity: 1.2,      // Audit fix: more reflective IBL, was 0.9
 });
 
-// Fresnel rim
+// Fresnel rim — biological translucency suggestion at grazing angles
 heartMat.onBeforeCompile = (shader) => {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <dithering_fragment>',
     `#include <dithering_fragment>
     float fresnelDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
     float fresnel = pow(1.0 - fresnelDot, 5.0);
-    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.12;`
+    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.14;`
   );
 };
 
-// SSS shell
+// AUDIT FIX 5: SSS shell — opacity 0.04 → 0.14, emissiveIntensity 0.0 → 0.06
+// At 0.04 it was completely invisible. 0.14 gives visible translucency when
+// backlit — simulates light passing through thin myocardial tissue walls.
 const sssMat = new THREE.MeshStandardMaterial({
   color:             0xff2244,
   emissive:          new THREE.Color(0xff1133),
-  emissiveIntensity: 0.0,
+  emissiveIntensity: 0.06,   // Audit fix: enable glow, was 0.0
   side:              THREE.BackSide,
   transparent:       true,
-  opacity:           0.04,
+  opacity:           0.14,   // Audit fix: visible translucency, was 0.04
   depthWrite:        false,
   blending:          THREE.AdditiveBlending,
 });
