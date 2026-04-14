@@ -13,13 +13,15 @@
     :root {
       --red:          #e8233a;
       --red-glow:     #ff3355;
-      --bg:           #05050a;
-      --card-bg:      rgba(5, 5, 10, 0.82);
-      --card-border:  rgba(232, 35, 58, 0.20);
+      --bg:           #010f20;
+      --card-bg:      rgba(1, 12, 28, 0.92);
+      --card-border:  rgba(232, 35, 58, 0.22);
       --text:         #ffffff;
-      --text-body:    #b0b0c0;
+      --text-body:    #b0c8d8;
       --text-muted:   rgba(255,255,255,0.32);
-      --dot-inactive: rgba(255,255,255,0.25);
+      --dot-inactive: rgba(255,255,255,0.22);
+      --ice:          #8cc8e8;
+      --ice-dim:      rgba(140, 200, 232, 0.18);
     }
 
     /* ─────────────────────────────────────────────
@@ -547,7 +549,132 @@
       .bl { animation: none; }
       .scroll-cue { animation: none; }
       .load-icon { animation: none; }
+      .load-crystal svg { animation: none; }
     }
+
+    /* ─────────────────────────────────────────────
+       IGLOO FEATURES  (igloo.inc-quality upgrades)
+    ───────────────────────────────────────────── */
+
+    /* FROST OVERLAY — section dissolve between anatomy stops */
+    #frost-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 5;
+      pointer-events: none;
+      opacity: 0;
+      background: radial-gradient(ellipse 80% 80% at 50% 50%,
+        transparent 30%,
+        rgba(1, 15, 35, 0.88) 100%);
+      transition: opacity 0.5s ease;
+    }
+    #frost-overlay.active { opacity: 1; }
+
+    /* TECHNICAL GRID (igloo precision diagram aesthetic) */
+    #tech-grid {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    /* COORDINATE MARKS — igloo-style corner data */
+    .coord-mark {
+      position: fixed;
+      font-family: 'Inter', 'Courier New', monospace;
+      font-size: 8px;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      color: rgba(100, 170, 220, 0.18);
+      pointer-events: none;
+      z-index: 12;
+      line-height: 1.6;
+    }
+    .coord-mark.tl { top: 16px; left: 20px; }
+    .coord-mark.tr { top: 16px; right: 20px; text-align: right; }
+    .coord-mark.bl { bottom: 66px; left: 20px; }
+
+    /* CRYSTAL LOADING SCREEN ANIMATION */
+    .load-crystal {
+      position: relative;
+      width: 64px; height: 64px;
+      margin-bottom: 8px;
+    }
+    .load-crystal svg {
+      width: 100%; height: 100%;
+      animation: crystal-rot 4s linear infinite;
+      overflow: visible;
+    }
+    @keyframes crystal-rot {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    .crys-ring {
+      fill: none;
+      stroke-width: 1;
+      stroke-dasharray: 100;
+      stroke-dashoffset: 100;
+      animation: crys-draw 1.2s ease-out forwards;
+    }
+    .crys-r1 { stroke: rgba(140, 200, 240, 0.75); stroke-dasharray: 188; animation-duration: 1.0s; }
+    .crys-r2 { stroke: rgba(100, 160, 220, 0.55); stroke-dasharray: 130; animation-delay: 0.15s; animation-duration: 1.0s; }
+    .crys-r3 { stroke: rgba(180, 220, 255, 0.40); stroke-dasharray: 72;  animation-delay: 0.30s; animation-duration: 0.8s; }
+    .crys-spokes {
+      stroke: rgba(140, 200, 240, 0.35);
+      stroke-width: 0.8;
+      fill: none;
+      stroke-dasharray: 30;
+      stroke-dashoffset: 30;
+      animation: crys-draw 0.6s ease-out 0.5s forwards;
+    }
+    @keyframes crys-draw {
+      to { stroke-dashoffset: 0; }
+    }
+
+    /* ANATOMY CARDS — igloo-quality deep-ice glassmorphism */
+    .a-tab {
+      background: rgba(1, 10, 22, 0.92) !important;
+      backdrop-filter: blur(18px) saturate(1.6) !important;
+      -webkit-backdrop-filter: blur(18px) saturate(1.6) !important;
+      border-left-width: 2px !important;
+    }
+    /* Ice-highlight flare at top-left of card */
+    .a-tab::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 1px;
+      background: linear-gradient(to right, transparent, rgba(140,200,255,0.15), transparent);
+      pointer-events: none;
+    }
+
+    /* LABEL SCRAMBLE — character cycles before settling */
+    .scrambling { font-variant-numeric: tabular-nums; }
+
+    /* TRAVELING PULSE ON LABEL LINES */
+    .line-pulse {
+      stroke-dasharray: 6 100;
+      stroke-dashoffset: 100;
+      animation: pulse-travel 1.2s ease-out forwards;
+    }
+    @keyframes pulse-travel {
+      to { stroke-dashoffset: -100; }
+    }
+
+    /* ICE VIGNETTE (subtle blue edge darkening) */
+    #ice-vignette {
+      position: fixed;
+      inset: 0;
+      z-index: 3;
+      pointer-events: none;
+      background:
+        radial-gradient(ellipse 90% 90% at 50% 50%, transparent 55%, rgba(0,8,20,0.65) 100%);
+    }
+
+    /* HERO subtitle — brighter against arctic bg */
+    .hero-sub { color: rgba(255,255,255,0.48) !important; }
+
   </style>
 </head>
 <body>
@@ -563,35 +690,74 @@
 
 <!-- ── Loading ─────────────────────────────────── -->
 <div id="loading-screen">
-  <div class="load-icon"></div>
+  <!-- Crystal formation animation (igloo.inc style) -->
+  <div class="load-crystal">
+    <svg viewBox="-34 -34 68 68" xmlns="http://www.w3.org/2000/svg">
+      <!-- outer hexagon -->
+      <polygon class="crys-ring crys-r1"
+        points="30,0 15,26 -15,26 -30,0 -15,-26 15,-26"/>
+      <!-- middle diamond -->
+      <polygon class="crys-ring crys-r2"
+        points="22,0 0,22 -22,0 0,-22"/>
+      <!-- inner triangle -->
+      <polygon class="crys-ring crys-r3"
+        points="0,-20 17,10 -17,10"/>
+      <!-- 6 radial spokes -->
+      <g class="crys-spokes">
+        <line x1="0" y1="0" x2="30" y2="0"/>
+        <line x1="0" y1="0" x2="15" y2="26"/>
+        <line x1="0" y1="0" x2="-15" y2="26"/>
+        <line x1="0" y1="0" x2="-30" y2="0"/>
+        <line x1="0" y1="0" x2="-15" y2="-26"/>
+        <line x1="0" y1="0" x2="15" y2="-26"/>
+      </g>
+      <!-- heart at center (biological anchor) -->
+      <path fill="rgba(232,35,58,0.7)" d="M0 8C0 8 -7 3 -7 -1.5C-7 -4.5 -4.5 -6 -2 -6C-0.7 -6 0 -5 0 -4C0 -5 0.7 -6 2 -6C4.5 -6 7 -4.5 7 -1.5C7 3 0 8 0 8Z"/>
+    </svg>
+  </div>
+  <div class="load-icon" style="display:none"></div>
   <div class="load-text" id="load-pct">Loading heart…</div>
 </div>
 
-<!-- ── Background lines (Active Theory style) ── -->
-<!--
-  12 solid white arcs. No dasharray. Ultra-low opacity.
-  Each spans from x=-200 to x=1640 — well past both viewport edges.
-  Large cubic bezier sweeps create the long graceful arcs.
-  Paired with very slow CSS drift animations (17–35s cycles).
--->
-<svg id="bg-lines" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-  <!-- Upper register -->
-  <path class="bl bl-1"  d="M-200,80  C200,-40  600,220  900,60  S1300,180 1640,20"/>
-  <path class="bl bl-2"  d="M-200,160 C150,40   500,300  850,140 S1250,260 1640,100"/>
-  <path class="bl bl-3"  d="M-200,30  C300,130  700,-30  1050,150 S1400,10  1640,180"/>
-  <!-- Upper-mid register -->
-  <path class="bl bl-4"  d="M-200,280 C100,180  450,400  800,260 S1200,380 1640,200"/>
-  <path class="bl bl-5"  d="M-200,340 C250,220  650,460  1000,300 S1350,420 1640,260"/>
-  <!-- True mid — dramatic amplitude -->
-  <path class="bl bl-6"  d="M-200,450 C180,280  560,580  940,400 S1320,540 1640,360"/>
-  <path class="bl bl-7"  d="M-200,500 C320,360  720,620  1080,460 S1420,580 1640,420"/>
-  <!-- Lower-mid register -->
-  <path class="bl bl-8"  d="M-200,600 C140,480  480,700  860,560 S1260,680 1640,520"/>
-  <path class="bl bl-9"  d="M-200,660 C200,540  580,760  940,620 S1340,720 1640,580"/>
-  <!-- Lower register -->
-  <path class="bl bl-10" d="M-200,750 C160,640  500,840  880,700 S1300,820 1640,660"/>
-  <path class="bl bl-11" d="M-200,820 C220,720  620,900  980,780 S1360,880 1640,740"/>
-  <path class="bl bl-12" d="M-200,880 C280,800  680,940  1060,860 S1420,940 1640,820"/>
+<!-- ── Frost overlay (igloo section dissolve) ── -->
+<div id="frost-overlay"></div>
+
+<!-- ── Ice vignette (cold blue edge) ─────────── -->
+<div id="ice-vignette"></div>
+
+<!-- ── Coordinate marks (igloo precision) ───── -->
+<div class="coord-mark tl" id="coord-tl">SYS · HRT-A1<br/>CARDIO ANATOMY</div>
+<div class="coord-mark tr" id="coord-tr">GRADE 7 · BIO<br/>v2.1.0</div>
+<div class="coord-mark bl" id="coord-bl">LAT 40.7°N · LONG 74.0°W</div>
+
+<!-- ── Technical grid (igloo precision diagram style) ── -->
+<svg id="tech-grid" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <pattern id="smallGrid" width="60" height="60" patternUnits="userSpaceOnUse">
+      <path d="M 60 0 L 0 0 0 60" fill="none" stroke="rgba(80,140,200,0.035)" stroke-width="0.5"/>
+    </pattern>
+    <pattern id="largeGrid" width="300" height="300" patternUnits="userSpaceOnUse">
+      <rect width="300" height="300" fill="url(#smallGrid)"/>
+      <path d="M 300 0 L 0 0 0 300" fill="none" stroke="rgba(100,170,230,0.055)" stroke-width="0.8"/>
+    </pattern>
+  </defs>
+  <!-- Main grid -->
+  <rect width="100%" height="100%" fill="url(#largeGrid)"/>
+  <!-- Center cross-hairs -->
+  <line x1="720" y1="0" x2="720" y2="900" stroke="rgba(100,170,230,0.06)" stroke-width="0.6" stroke-dasharray="4 12"/>
+  <line x1="0" y1="450" x2="1440" y2="450" stroke="rgba(100,170,230,0.06)" stroke-width="0.6" stroke-dasharray="4 12"/>
+  <!-- Diagonal accent lines (igloo tension lines) -->
+  <line x1="0" y1="0" x2="1440" y2="900" stroke="rgba(80,140,200,0.02)" stroke-width="0.5"/>
+  <line x1="1440" y1="0" x2="0" y2="900" stroke="rgba(80,140,200,0.02)" stroke-width="0.5"/>
+  <!-- Corner brackets -->
+  <path d="M 24 24 L 24 64 M 24 24 L 64 24" fill="none" stroke="rgba(100,170,230,0.18)" stroke-width="1"/>
+  <path d="M 1416 24 L 1416 64 M 1416 24 L 1376 24" fill="none" stroke="rgba(100,170,230,0.18)" stroke-width="1"/>
+  <path d="M 24 876 L 24 836 M 24 876 L 64 876" fill="none" stroke="rgba(100,170,230,0.18)" stroke-width="1"/>
+  <path d="M 1416 876 L 1416 836 M 1416 876 L 1376 876" fill="none" stroke="rgba(100,170,230,0.18)" stroke-width="1"/>
+  <!-- Subtle background arc sweeps (preserved from original) -->
+  <path class="bl bl-3" d="M-200,30  C300,130  700,-30  1050,150 S1400,10  1640,180" fill="none" stroke="rgba(200,220,255,0.022)" stroke-width="1"/>
+  <path class="bl bl-6" d="M-200,450 C180,280  560,580  940,400 S1320,540 1640,360" fill="none" stroke="rgba(200,220,255,0.022)" stroke-width="1"/>
+  <path class="bl bl-9" d="M-200,660 C200,540  580,760  940,620 S1340,720 1640,580" fill="none" stroke="rgba(200,220,255,0.022)" stroke-width="1"/>
 </svg>
 
 <!-- ── Three.js canvas ──────────────────────────── -->
@@ -696,6 +862,38 @@ ScrollTrigger.scrollerProxy(document.documentElement, {
   },
 });
 lenis.on('scroll', ScrollTrigger.update);
+
+// ============================================================
+//  SCRAMBLE TEXT  (igloo.inc letter-decode effect)
+//  ARCTIC R11 + MERIDIAN R11: first char locked, Latin only,
+//  decodes left-to-right over 600ms — reads as medical data
+//  materializing from the model. Applied to anatomy label names.
+// ============================================================
+const SCRAMBLE_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ·0123456789';
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function scrambleText(el, finalText, duration = 0.65) {
+  if (REDUCED_MOTION) { el.textContent = finalText; return; }
+  const upper = finalText.toUpperCase();
+  let frame = 0;
+  const totalFrames = Math.round(duration * 55); // ~55fps
+  el.classList.add('scrambling');
+  const id = setInterval(() => {
+    frame++;
+    const progress = frame / totalFrames;
+    el.textContent = upper.split('').map((ch, i) => {
+      if (ch === ' ' || ch === '-' || ch === '/') return ch;
+      // First char always correct; rest decode left-to-right
+      if (i === 0 || progress > i / upper.length) return ch;
+      return SCRAMBLE_CHARS[Math.floor(Math.random() * SCRAMBLE_CHARS.length)];
+    }).join('');
+    if (frame >= totalFrames) {
+      clearInterval(id);
+      el.textContent = finalText.toUpperCase();
+      el.classList.remove('scrambling');
+    }
+  }, 18);
+}
 
 // ── Mouse tracking (cursor + heart parallax) ─────────────────
 let mouseNX = 0, mouseNY = 0;   // normalized -1..1
@@ -814,13 +1012,41 @@ const grainPass = new ShaderPass({
 });
 composer.addPass(grainPass);
 
+// ── Frost vignette — igloo.inc cold blue edge (MERIDIAN/ARCTIC agreement) ──
+const frostVigPass = new ShaderPass({
+  uniforms: {
+    tDiffuse:   { value: null },
+    uIntensity: { value: 1.0 },
+  },
+  vertexShader: `
+    varying vec2 vUv;
+    void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }
+  `,
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    uniform float uIntensity;
+    varying vec2 vUv;
+    void main() {
+      vec4 col = texture2D(tDiffuse, vUv);
+      vec2 uv  = vUv - 0.5;
+      float vig = 1.0 - dot(uv, uv) * uIntensity * 2.2;
+      vig = pow(clamp(vig, 0.0, 1.0), 1.4);
+      // warm red channel protected; push blues at edge — igloo frost tint
+      vec3 frostEdge = vec3(0.005, 0.02, 0.055);
+      col.rgb = col.rgb * vig + frostEdge * (1.0 - vig) * uIntensity;
+      gl_FragColor = col;
+    }
+  `,
+});
+composer.addPass(frostVigPass);
+
 composer.addPass(new OutputPass());
 
 // ============================================================
 //  SCENE & CAMERA
 // ============================================================
 const scene  = new THREE.Scene();
-scene.background = new THREE.Color(0x02020c); // deep cool dark — not pure black
+scene.background = new THREE.Color(0x010f20); // deep arctic blue-black (igloo.inc dark)
 // No fog — it was killing the particles entirely
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
@@ -840,7 +1066,7 @@ pmremGen.dispose();
 // ============================================================
 //  LIGHTING
 // ============================================================
-scene.add(new THREE.AmbientLight(0x1a0008, 3));
+scene.add(new THREE.AmbientLight(0x0a1020, 0.4)); // BOT-07 fix: was 3 — now 0.4 with arctic tint
 
 const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.8);
 keyLight.position.set(3, 5, 4);
@@ -922,43 +1148,58 @@ const sssMat = new THREE.MeshStandardMaterial({
 //  PARTICLE FIELD  (Active Theory style — drifting star field)
 //  ~1000 pts, cool white, depth-based opacity, slow individual drift
 // ============================================================
-const PARTICLE_COUNT = 1000;
-const pPositions = new Float32Array(PARTICLE_COUNT * 3);
-const pVelocities = [];
+// ── igloo.inc velocity-reactive particles (ARCTIC R6 + MERIDIAN safety) ──
+const PARTICLE_COUNT = 1200;
+const pPositions   = new Float32Array(PARTICLE_COUNT * 3);
+const pVelData     = new Float32Array(PARTICLE_COUNT);     // speed magnitude
+const pVelocities  = [];
+const pPrevPos     = new Float32Array(PARTICLE_COUNT * 3);
 
 for (let i = 0; i < PARTICLE_COUNT; i++) {
-  // Fill entire visible volume — in front of AND behind heart
   pPositions[i*3]   = (Math.random()-0.5) * 36;
   pPositions[i*3+1] = (Math.random()-0.5) * 22;
-  pPositions[i*3+2] = (Math.random()-0.5) * 28; // z from -14 to +14
+  pPositions[i*3+2] = (Math.random()-0.5) * 28;
   pVelocities.push({
-    x: (Math.random()-0.5) * 0.003,
-    y: (Math.random()-0.5) * 0.003,
-    z: (Math.random()-0.5) * 0.001,
+    x: (Math.random()-0.5) * 0.004,
+    y: (Math.random()-0.5) * 0.004,
+    z: (Math.random()-0.5) * 0.0015,
   });
+  pPrevPos[i*3] = pPositions[i*3];
+  pPrevPos[i*3+1] = pPositions[i*3+1];
+  pPrevPos[i*3+2] = pPositions[i*3+2];
+  pVelData[i] = 0;
 }
 
 const particleGeo = new THREE.BufferGeometry();
 particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+particleGeo.setAttribute('velocity', new THREE.BufferAttribute(pVelData, 1));
 
 const particleMat = new THREE.ShaderMaterial({
   uniforms: { uTime: { value: 0 } },
   vertexShader: `
+    attribute float velocity;
     varying float vDepth;
+    varying float vVel;
     void main() {
+      vVel = velocity;
       vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
       float dist = length(mvPos.xyz);
-      vDepth = clamp(dist / 20.0, 0.0, 1.0);
+      vDepth = clamp(dist / 22.0, 0.0, 1.0);
       gl_Position  = projectionMatrix * mvPos;
-      gl_PointSize = mix(3.5, 1.0, vDepth); // near=3.5px, far=1px
+      gl_PointSize = mix(4.0, 1.0, vDepth) * (1.0 + velocity * 6.0);
     }
   `,
   fragmentShader: `
     varying float vDepth;
+    varying float vVel;
     void main() {
       float d = length(gl_PointCoord - 0.5) * 2.0;
-      float a = (1.0 - smoothstep(0.2, 1.0, d)) * mix(0.9, 0.15, vDepth);
-      gl_FragColor = vec4(0.80, 0.88, 1.0, a); // cool white/pale blue
+      float a = (1.0 - smoothstep(0.15, 1.0, d)) * mix(0.85, 0.12, vDepth);
+      // Slow = ice-white, fast = arctic cyan  (igloo.inc velocity color)
+      vec3 slowCol = vec3(0.78, 0.88, 1.00);
+      vec3 fastCol = vec3(0.30, 0.78, 1.00);
+      vec3 col = mix(slowCol, fastCol, clamp(vVel * 90.0, 0.0, 1.0));
+      gl_FragColor = vec4(col, a);
     }
   `,
   transparent: true,
@@ -969,6 +1210,69 @@ const particleMat = new THREE.ShaderMaterial({
 const particleSystem = new THREE.Points(particleGeo, particleMat);
 scene.add(particleSystem);
 
+// ============================================================
+//  CRYSTAL PRISM DECORATIONS  (igloo.inc procedural ice geometry)
+//  14 floating IcosahedronGeometry prisms — very transparent,
+//  transmission:0.88, ior:1.4, slow individual rotation drift.
+//  ARCTIC wins this one: background becomes environment, not void.
+//  MERIDIAN wins detail: they don't compete with the red heart.
+// ============================================================
+const crystalGeoSizes = [0.22, 0.16, 0.28, 0.12, 0.20, 0.14, 0.18, 0.25,
+                          0.10, 0.17, 0.13, 0.21, 0.15, 0.19];
+const crystalData = [];
+
+const crystalMat = new THREE.MeshPhysicalMaterial({
+  color:              0x9ec8e4,
+  transparent:        true,
+  opacity:            0.55,
+  roughness:          0.04,
+  metalness:          0.0,
+  transmission:       0.88,
+  ior:                1.40,
+  thickness:          0.6,
+  envMapIntensity:    1.8,
+  side:               THREE.DoubleSide,
+  depthWrite:         false,
+});
+
+crystalGeoSizes.forEach((r, i) => {
+  const geo  = new THREE.IcosahedronGeometry(r, 0); // flat-shaded, angular
+  const mat  = crystalMat.clone();
+  mat.opacity = 0.30 + Math.random() * 0.30;
+  const mesh = new THREE.Mesh(geo, mat);
+
+  // Spread them around the periphery (avoid the heart center)
+  const angle  = (i / crystalGeoSizes.length) * Math.PI * 2 + Math.random() * 0.6;
+  const dist   = 3.8 + Math.random() * 4.5;
+  const height = (Math.random() - 0.5) * 5.0;
+  const zOff   = (Math.random() - 0.5) * 8.0;
+  mesh.position.set(
+    Math.cos(angle) * dist,
+    height,
+    zOff - 5.0  // push behind heart on average
+  );
+  mesh.rotation.set(
+    Math.random() * Math.PI,
+    Math.random() * Math.PI,
+    Math.random() * Math.PI
+  );
+  mesh.userData.rotSpeed = {
+    x: (Math.random() - 0.5) * 0.004,
+    y: (Math.random() - 0.5) * 0.006,
+    z: (Math.random() - 0.5) * 0.003,
+  };
+  scene.add(mesh);
+  crystalData.push(mesh);
+});
+
+function updateCrystals() {
+  crystalData.forEach(m => {
+    m.rotation.x += m.userData.rotSpeed.x;
+    m.rotation.y += m.userData.rotSpeed.y;
+    m.rotation.z += m.userData.rotSpeed.z;
+  });
+}
+
 // Dummy for old traveler/bgLine refs that may still exist below
 const bgLineObjs = [];
 const BG_LINE_COUNT = 0;
@@ -978,16 +1282,31 @@ buildBgLines();
 
 function updateParticles(dt) {
   for (let i = 0; i < PARTICLE_COUNT; i++) {
+    // Save previous pos for velocity calc
+    pPrevPos[i*3]   = pPositions[i*3];
+    pPrevPos[i*3+1] = pPositions[i*3+1];
+    pPrevPos[i*3+2] = pPositions[i*3+2];
+
     pPositions[i*3]   += pVelocities[i].x;
     pPositions[i*3+1] += pVelocities[i].y;
     pPositions[i*3+2] += pVelocities[i].z;
+
     // Wrap at boundaries
     if (pPositions[i*3]   >  20) pPositions[i*3]   = -20;
     if (pPositions[i*3]   < -20) pPositions[i*3]   =  20;
     if (pPositions[i*3+1] >  12) pPositions[i*3+1] = -12;
     if (pPositions[i*3+1] < -12) pPositions[i*3+1] =  12;
+
+    // Compute velocity magnitude — drives color shift (igloo.inc style)
+    const dx = pPositions[i*3]   - pPrevPos[i*3];
+    const dy = pPositions[i*3+1] - pPrevPos[i*3+1];
+    const dz = pPositions[i*3+2] - pPrevPos[i*3+2];
+    const spd = Math.sqrt(dx*dx + dy*dy + dz*dz);
+    // Exponential smoothing to prevent flickering
+    pVelData[i] += (spd - pVelData[i]) * 0.15;
   }
   particleGeo.attributes.position.needsUpdate = true;
+  particleGeo.attributes.velocity.needsUpdate = true;
   particleMat.uniforms.uTime.value += dt;
 }
 
@@ -1376,6 +1695,20 @@ function showLabel(id) {
   el.pname.style.opacity = '1';
   el.tab.classList.add('show');
   el.line.setAttribute('opacity', '1');
+
+  // igloo.inc letter-scramble: decode the anatomy name on reveal
+  const nameEl = el.tab.querySelector('.a-tab-name');
+  const aData  = anatomy.find(a => a.id === id);
+  if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
+
+  // Also scramble the part label above the dot
+  scrambleText(el.pname, aData ? aData.name : '', 0.50);
+
+  // Traveling light pulse on the bezier leader line (MERIDIAN R4)
+  el.line.style.animation = 'none';
+  el.line.setAttribute('stroke-dasharray', '6 100');
+  el.line.setAttribute('stroke-dashoffset', '100');
+  el.line.style.animation = 'pulse-travel 1.2s ease-out forwards';
 }
 function hideLabel(id) {
   const el = els[id];
@@ -1494,6 +1827,10 @@ function setupScroll() {
     onEnter() {
       nav.classList.add('visible');
       document.getElementById('ekg-bar').classList.add('visible');
+      // Frost dissolve on entry (igloo.inc section transition)
+      const fo = document.getElementById('frost-overlay');
+      fo.classList.add('active');
+      setTimeout(() => fo.classList.remove('active'), 500);
       gsap.timeline()
         .to(camT, { z: 3.2, duration: 0.35, ease: 'power3.in' })
         .to(camT, { z: 5.6, duration: 0.6,  ease: 'power3.out' });
@@ -1657,6 +1994,14 @@ function heartbeatScale(dt) {
 
   // Subtle fill only — no pulsing glow, no neon effect
   glowLight.intensity = 1.2 + beat * 0.8; // barely perceptible warmth on the beat
+
+  // MERIDIAN R8: CA fires with heartbeat systole (prefers-reduced-motion gated)
+  if (!REDUCED_MOTION && lub > 0.6) {
+    const caSpike = lub * 0.004;
+    if (chromaPass.uniforms.uStrength.value < 0.0015 + caSpike) {
+      chromaPass.uniforms.uStrength.value = 0.0015 + caSpike;
+    }
+  }
 }
 
 // Synthetic heartbeat via Web Audio API (no audio file needed)
@@ -1818,6 +2163,7 @@ let chromaVelocity = 0;
   camera.lookAt(0, 0, 0);
 
   updateParticles(dt);
+  updateCrystals();
   updateLabelPositions();
   scheduleBeats();
 
