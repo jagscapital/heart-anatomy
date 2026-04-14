@@ -427,35 +427,7 @@
     }
     body:hover #cursor-outer { border-color: rgba(232,35,58,0.75); }
 
-    /* ─────────────────────────────────────────────
-       EKG BAR  (fixed bottom, centered, premium)
-    ───────────────────────────────────────────── */
-    #ekg-bar {
-      position: fixed;
-      bottom: 18px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: min(600px, 80vw);
-      height: 44px;
-      z-index: 15;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.8s ease;
-    }
-    #ekg-bar::before, #ekg-bar::after {
-      content: '';
-      position: absolute;
-      top: 0; bottom: 0;
-      width: 60px;
-      z-index: 1;
-    }
-    #ekg-bar::before { left: 0;  background: linear-gradient(to right, rgba(5,5,10,1), transparent); }
-    #ekg-bar::after  { right: 0; background: linear-gradient(to left,  rgba(5,5,10,1), transparent); }
-    #ekg-bar.visible { opacity: 1; }
-    #ekg-canvas {
-      width: 100%; height: 100%;
-      display: block;
-    }
+    /* EKG bar removed — heartbeat is 3D/visual only */
 
     /* ─────────────────────────────────────────────
        HERO — Barlow Condensed display + word masks
@@ -594,7 +566,7 @@
     }
     .coord-mark.tl { top: 16px; left: 20px; }
     .coord-mark.tr { top: 16px; right: 20px; text-align: right; }
-    .coord-mark.bl { bottom: 66px; left: 20px; }
+    .coord-mark.bl { bottom: 22px; left: 20px; }
 
     /* CRYSTAL LOADING SCREEN ANIMATION */
     .load-crystal {
@@ -683,11 +655,6 @@
 <!-- ── Cursor ──────────────────────────────────── -->
 <div id="cursor-outer"></div>
 <div id="cursor-dot"></div>
-
-<!-- ── EKG bar ──────────────────────────────────── -->
-<div id="ekg-bar">
-  <canvas id="ekg-canvas"></canvas>
-</div>
 
 <!-- ── Loading ─────────────────────────────────── -->
 <div id="loading-screen">
@@ -1121,39 +1088,48 @@ TEX.rough.colorSpace = THREE.LinearSRGBColorSpace;     // Roughness: Linear (sca
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
 });
 
-// AUDIT FIX 3: roughness 0.68 → 0.52 (wet cardiac tissue is semi-glossy, not matte)
-// AUDIT FIX 4: envMapIntensity 0.9 → 1.2 (more IBL for wet surface sheen)
-const heartMat = new THREE.MeshStandardMaterial({
-  map:             TEX.base,
-  normalMap:       TEX.norm,
-  roughnessMap:    TEX.rough,
-  normalScale:     new THREE.Vector2(0.8, 0.8),
-  metalness:       0.0,
-  roughness:       0.52,     // Audit fix: wet tissue, was 0.68
-  envMapIntensity: 1.2,      // Audit fix: more reflective IBL, was 0.9
+// ── MeshPhysicalMaterial — igloo.inc surface quality ────────────────────────
+// The key igloo technique: clearcoat adds a second specular micro-layer
+// (like the wet pericardial membrane over the heart), giving that
+// glass-over-surface precision that makes igloo.inc objects look premium.
+// envMapIntensity: 2.0 = strong IBL for environment reflections.
+// ior: 1.45 = biological tissue refraction index.
+const heartMat = new THREE.MeshPhysicalMaterial({
+  map:                TEX.base,
+  normalMap:          TEX.norm,
+  roughnessMap:       TEX.rough,
+  normalScale:        new THREE.Vector2(1.0, 1.0),  // full normal detail
+  metalness:          0.0,
+  roughness:          0.38,          // semi-glossy wet surface
+  envMapIntensity:    2.0,           // strong IBL — igloo-quality reflections
+  clearcoat:          0.45,          // wet pericardial membrane layer
+  clearcoatRoughness: 0.10,          // very smooth wet coat
+  ior:                1.45,          // biological tissue IOR
+  sheen:              0.18,          // microfiber scattering (cardiac muscle fibers)
+  sheenRoughness:     0.65,
+  sheenColor:         new THREE.Color(0xff2244),
 });
 
-// Fresnel rim — biological translucency suggestion at grazing angles
+// Fresnel rim — warm rim light at grazing angles (Schlick approx, power 4.5)
 heartMat.onBeforeCompile = (shader) => {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <dithering_fragment>',
     `#include <dithering_fragment>
     float fresnelDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
-    float fresnel = pow(1.0 - fresnelDot, 5.0);
-    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.14;`
+    float fresnel = pow(1.0 - fresnelDot, 4.5);
+    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.18;`
   );
 };
 
-// AUDIT FIX 5: SSS shell — opacity 0.04 → 0.14, emissiveIntensity 0.0 → 0.06
-// At 0.04 it was completely invisible. 0.14 gives visible translucency when
-// backlit — simulates light passing through thin myocardial tissue walls.
+// SSS shell — backlit translucency through myocardial tissue walls
+// Now paired with clearcoat material above; shell gives warm inner glow
 const sssMat = new THREE.MeshStandardMaterial({
   color:             0xff2244,
   emissive:          new THREE.Color(0xff1133),
-  emissiveIntensity: 0.06,   // Audit fix: enable glow, was 0.0
+  emissiveIntensity: 0.08,
   side:              THREE.BackSide,
   transparent:       true,
-  opacity:           0.14,   // Audit fix: visible translucency, was 0.04
+  opacity:           0.16,
   depthWrite:        false,
   blending:          THREE.AdditiveBlending,
 });
@@ -1596,11 +1572,14 @@ new FBXLoader().load(
       ease: 'back.out(1.4)',
     }, 1.8);
 
-    // Phase 5: clean up igloo, unlock heartbeat animation
+    // Phase 5: unlock heartbeat the moment spring-in settles (~2.75s)
+    // then clean up igloo geometry
+    tl.add(() => {
+      iglooAnimating = false;  // heartbeat starts immediately
+    }, 2.75);
     tl.add(() => {
       scene.remove(iglooGroup);
-      iglooAnimating = false;
-    }, 2.9);
+    }, 3.0);
 
     gsap.to(camT, { z: 6, duration: 2.8, ease: 'power2.out', delay: 0.4 });
 
@@ -1839,7 +1818,6 @@ function setupScroll() {
     },
     onEnter() {
       nav.classList.add('visible');
-      document.getElementById('ekg-bar').classList.add('visible');
       // Frost dissolve on entry (igloo.inc section transition)
       const fo = document.getElementById('frost-overlay');
       fo.classList.add('active');
@@ -1855,11 +1833,9 @@ function setupScroll() {
     },
     onLeaveBack() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
-      document.getElementById('ekg-bar').classList.remove('visible');
     },
     onEnterBack() {
       nav.classList.add('visible');
-      document.getElementById('ekg-bar').classList.add('visible');
     },
   });
 
@@ -1988,9 +1964,9 @@ function heartbeatScale(dt) {
     dub = Math.sin(((tNorm - 0.18) / 0.08) * Math.PI);
   }
 
-  // BOT-02: doubled amplitudes
-  const lubAmp = 0.11;
-  const dubAmp = 0.068;
+  // Amplitudes — boosted now that EKG bar is removed (heartbeat is the only pulse feedback)
+  const lubAmp = 0.14;
+  const dubAmp = 0.085;
   const beat   = lub * lubAmp + dub * dubAmp;
 
   // BOT-01: asymmetric cardiac squeeze
@@ -2058,69 +2034,7 @@ soundBtn.addEventListener('click', () => {
   }
 });
 
-// ============================================================
-//  EKG LINE  (PQRST waveform, rolling vertex buffer)
-// ============================================================
-{
-  const ekgCanvas = document.getElementById('ekg-canvas');
-  const ekgCtx    = ekgCanvas.getContext('2d');
-  const BUF       = 600;
-  const ekgBuf    = new Float32Array(BUF);
-  let   ekgHead   = 0;
-  let   ekgT      = 0;
-
-  function pqrst(t) {
-    const phase = (t % 1.0);
-    if (phase < 0.10) return 0.15 * Math.sin((phase / 0.10) * Math.PI);
-    if (phase < 0.18) return 0;
-    if (phase < 0.22) return -0.08 * Math.sin(((phase - 0.18) / 0.04) * Math.PI);
-    if (phase < 0.30) return Math.sin(((phase - 0.22) / 0.08) * Math.PI);
-    if (phase < 0.36) return -0.12 * Math.sin(((phase - 0.30) / 0.06) * Math.PI);
-    if (phase < 0.44) return 0;
-    if (phase < 0.58) return 0.22 * Math.sin(((phase - 0.44) / 0.14) * Math.PI);
-    return 0;
-  }
-
-  const EKG_DPR = Math.min(devicePixelRatio, 2);
-  function resizeEKG() {
-    const W = ekgCanvas.offsetWidth || Math.min(600, window.innerWidth * 0.8);
-    const H = 44;
-    ekgCanvas.width  = W * EKG_DPR;
-    ekgCanvas.height = H * EKG_DPR;
-    ekgCtx.setTransform(EKG_DPR, 0, 0, EKG_DPR, 0, 0);
-  }
-  resizeEKG();
-  window.addEventListener('resize', resizeEKG);
-
-  function drawEKG() {
-    const W = ekgCanvas.offsetWidth || Math.min(600, window.innerWidth * 0.8);
-    const H = 44;
-    ekgCtx.clearRect(0, 0, W, H);
-    ekgCtx.strokeStyle = '#22c55e';
-    ekgCtx.lineWidth   = 1.5;
-    ekgCtx.shadowColor = '#22c55e';
-    ekgCtx.shadowBlur  = 8;
-    ekgCtx.globalAlpha = 0.85;
-    ekgCtx.beginPath();
-    for (let i = 0; i < BUF; i++) {
-      const idx = (ekgHead + i) % BUF;
-      const x   = (i / BUF) * W;
-      const y   = H * 0.5 - ekgBuf[idx] * H * 0.38;
-      i === 0 ? ekgCtx.moveTo(x, y) : ekgCtx.lineTo(x, y);
-    }
-    ekgCtx.stroke();
-  }
-
-  function tickEKG(dt) {
-    ekgT    += dt * 1.15;
-    const v  = pqrst(ekgT);
-    ekgBuf[ekgHead] = v;
-    ekgHead = (ekgHead + 1) % BUF;
-    drawEKG();
-  }
-
-  window._tickEKG = tickEKG;
-}
+// EKG bar removed — heartbeat is expressed through 3D scale + CA + glow
 
 // ============================================================
 //  RENDER LOOP
@@ -2165,9 +2079,6 @@ let chromaVelocity = 0;
     const bankTarget = Math.sin(theta * 0.5) * 0.08;
     heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, bankTarget, 3.5, dt);
   }
-
-  // EKG tick
-  if (window._tickEKG) window._tickEKG(dt);
 
   // Frame-rate-independent smooth camera
   camera.position.x = THREE.MathUtils.damp(camera.position.x, camT.x, CAM_LAMBDA, dt);
