@@ -35,7 +35,12 @@
     }
 
     /* ─────────────────────────────────────────────
-       BACKGROUND LINES  (igloo-style, CSS animated)
+       BACKGROUND LINES  (Active Theory style)
+       BOT-03/04/05 FINAL VERDICT:
+       - solid lines, NO stroke-dasharray
+       - cold white/silver: rgba(220,230,255,0.032)
+       - 12 paths spanning x:-200 to x:1640 (beyond viewport)
+       - very slow drift animations (17-35s cycles)
     ───────────────────────────────────────────── */
     #bg-lines {
       position: fixed;
@@ -47,28 +52,32 @@
     }
     .bl {
       fill: none;
-      stroke: rgba(180, 20, 40, 0.055);
-      stroke-width: 1.2;
-      stroke-dasharray: 6 9;
+      stroke: rgba(220, 230, 255, 0.032);
+      stroke-width: 1.0;
     }
-    .bl-1 { animation: bdrift1 9s ease-in-out infinite; }
-    .bl-2 { animation: bdrift2 11s ease-in-out infinite; animation-delay:-3s; }
-    .bl-3 { animation: bdrift3 8s ease-in-out infinite; animation-delay:-5s; }
-    .bl-4 { animation: bdrift1 13s ease-in-out infinite; animation-delay:-2s; }
-    .bl-5 { animation: bdrift2 10s ease-in-out infinite; animation-delay:-7s; }
-    .bl-6 { animation: bdrift3 14s ease-in-out infinite; animation-delay:-4s; }
-    .bl-7 { animation: bdrift1 7s ease-in-out infinite; animation-delay:-1s; }
+    .bl-1  { animation: bdrift1 22s ease-in-out infinite; }
+    .bl-2  { animation: bdrift2 28s ease-in-out infinite; animation-delay:-6s; }
+    .bl-3  { animation: bdrift3 19s ease-in-out infinite; animation-delay:-11s; }
+    .bl-4  { animation: bdrift1 31s ease-in-out infinite; animation-delay:-4s; }
+    .bl-5  { animation: bdrift2 24s ease-in-out infinite; animation-delay:-15s; }
+    .bl-6  { animation: bdrift3 35s ease-in-out infinite; animation-delay:-8s; }
+    .bl-7  { animation: bdrift1 17s ease-in-out infinite; animation-delay:-2s; }
+    .bl-8  { animation: bdrift2 26s ease-in-out infinite; animation-delay:-18s; }
+    .bl-9  { animation: bdrift3 21s ease-in-out infinite; animation-delay:-9s; }
+    .bl-10 { animation: bdrift1 33s ease-in-out infinite; animation-delay:-13s; }
+    .bl-11 { animation: bdrift2 15s ease-in-out infinite; animation-delay:-7s; }
+    .bl-12 { animation: bdrift3 29s ease-in-out infinite; animation-delay:-20s; }
     @keyframes bdrift1 {
       0%,100% { transform: translateY(0px); }
-      50%      { transform: translateY(-18px); }
+      50%      { transform: translateY(-22px); }
     }
     @keyframes bdrift2 {
       0%,100% { transform: translateY(0px) scaleX(1); }
-      50%      { transform: translateY(14px) scaleX(1.02); }
+      50%      { transform: translateY(16px) scaleX(1.015); }
     }
     @keyframes bdrift3 {
       0%,100% { transform: translateY(0px) translateX(0px); }
-      50%      { transform: translateY(-10px) translateX(12px); }
+      50%      { transform: translateY(-12px) translateX(18px); }
     }
 
     /* ─────────────────────────────────────────────
@@ -142,7 +151,7 @@
       backdrop-filter: blur(8px) saturate(1.3);
       -webkit-backdrop-filter: blur(8px) saturate(1.3);
       border: 1px solid var(--card-border);
-      border-left-width: 3px; /* colored per part — set inline */
+      border-left-width: 3px;
       border-radius: 10px;
       padding: 12px 15px 14px;
       opacity: 0;
@@ -558,15 +567,31 @@
   <div class="load-text" id="load-pct">Loading heart…</div>
 </div>
 
-<!-- ── Background lines (igloo style, CSS animated) ── -->
+<!-- ── Background lines (Active Theory style) ── -->
+<!--
+  12 solid white arcs. No dasharray. Ultra-low opacity.
+  Each spans from x=-200 to x=1640 — well past both viewport edges.
+  Large cubic bezier sweeps create the long graceful arcs.
+  Paired with very slow CSS drift animations (17–35s cycles).
+-->
 <svg id="bg-lines" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
-  <path class="bl bl-1" d="M-80,120 Q200,60 480,180 T960,120 T1440,200 T1700,100"/>
-  <path class="bl bl-2" d="M-80,280 Q300,200 580,360 T1100,260 T1440,380 T1700,280"/>
-  <path class="bl bl-3" d="M-80,440 Q220,360 520,480 T1020,400 T1440,520"/>
-  <path class="bl bl-4" d="M-80,580 Q280,500 560,620 T1080,540 T1440,640 T1700,560"/>
-  <path class="bl bl-5" d="M-80,720 Q320,640 600,760 T1120,680 T1440,780"/>
-  <path class="bl bl-6" d="M-80,60  Q400,20  700,140 T1300,60  T1700,160"/>
-  <path class="bl bl-7" d="M-80,840 Q360,780 660,860 T1200,800 T1600,880"/>
+  <!-- Upper register -->
+  <path class="bl bl-1"  d="M-200,80  C200,-40  600,220  900,60  S1300,180 1640,20"/>
+  <path class="bl bl-2"  d="M-200,160 C150,40   500,300  850,140 S1250,260 1640,100"/>
+  <path class="bl bl-3"  d="M-200,30  C300,130  700,-30  1050,150 S1400,10  1640,180"/>
+  <!-- Upper-mid register -->
+  <path class="bl bl-4"  d="M-200,280 C100,180  450,400  800,260 S1200,380 1640,200"/>
+  <path class="bl bl-5"  d="M-200,340 C250,220  650,460  1000,300 S1350,420 1640,260"/>
+  <!-- True mid — dramatic amplitude -->
+  <path class="bl bl-6"  d="M-200,450 C180,280  560,580  940,400 S1320,540 1640,360"/>
+  <path class="bl bl-7"  d="M-200,500 C320,360  720,620  1080,460 S1420,580 1640,420"/>
+  <!-- Lower-mid register -->
+  <path class="bl bl-8"  d="M-200,600 C140,480  480,700  860,560 S1260,680 1640,520"/>
+  <path class="bl bl-9"  d="M-200,660 C200,540  580,760  940,620 S1340,720 1640,580"/>
+  <!-- Lower register -->
+  <path class="bl bl-10" d="M-200,750 C160,640  500,840  880,700 S1300,820 1640,660"/>
+  <path class="bl bl-11" d="M-200,820 C220,720  620,900  980,780 S1360,880 1640,740"/>
+  <path class="bl bl-12" d="M-200,880 C280,800  680,940  1060,860 S1420,940 1640,820"/>
 </svg>
 
 <!-- ── Three.js canvas ──────────────────────────── -->
@@ -656,7 +681,7 @@ const lenis = new Lenis({
   duration:        1.6,
   easing:          (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
   smoothWheel:     true,
-  wheelMultiplier: 0.88,   // BOT-10: 0.72→0.88, slides into orbit not mud
+  wheelMultiplier: 0.88,
   touchMultiplier: 1.4,
   infinite:        false,
 });
@@ -684,7 +709,7 @@ lenis.on('scroll', ScrollTrigger.update);
   });
   (function animCursor() {
     requestAnimationFrame(animCursor);
-    ox += (cx - ox) * 0.20; // was 0.12 — much more responsive
+    ox += (cx - ox) * 0.20;
     oy += (cy - oy) * 0.20;
     outer.style.transform = `translate(${ox - 20}px, ${oy - 20}px)`;
   })();
@@ -698,10 +723,10 @@ const IS_MOBILE = window.innerWidth < 768;
 const canvas   = document.getElementById('three-canvas');
 const renderer = new THREE.WebGLRenderer({
   canvas,
-  antialias: false,               // MSAA incompatible with EffectComposer
+  antialias: false,
   powerPreference: 'high-performance',
 });
-const DPR = Math.min(window.devicePixelRatio, 2); // cap at 2 — bot debate winner
+const DPR = Math.min(window.devicePixelRatio, 2);
 renderer.setPixelRatio(DPR);
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping        = THREE.ACESFilmicToneMapping;
@@ -710,17 +735,17 @@ renderer.shadowMap.enabled  = true;
 renderer.shadowMap.type     = THREE.PCFSoftShadowMap;
 
 // ============================================================
-//  EFFECT COMPOSER:  RenderPass → Bloom → FXAA → Output
+//  EFFECT COMPOSER:  RenderPass → Bloom → FXAA → Chroma → Grain → Output
 // ============================================================
 const composer    = new EffectComposer(renderer);
-const renderPass  = new RenderPass(undefined, undefined); // scene/camera set after
+const renderPass  = new RenderPass(undefined, undefined);
 composer.addPass(renderPass);
 
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.35,  // strength  — only true specular peaks bloom
-  0.30,  // radius    — tight, no spread bleed
-  0.55   // threshold — well above surface color, below specular peaks
+  0.35,  // strength
+  0.30,  // radius
+  0.55   // threshold
 );
 composer.addPass(bloom);
 
@@ -735,7 +760,7 @@ composer.addPass(fxaaPass);
 const chromaPass = new ShaderPass({
   uniforms: {
     tDiffuse:  { value: null },
-    uStrength: { value: 0.0008 }, // always-on subtle split
+    uStrength: { value: 0.0008 },
   },
   vertexShader: `
     varying vec2 vUv;
@@ -795,7 +820,7 @@ scene.background = new THREE.Color(0x05050a);
 scene.fog        = new THREE.FogExp2(0x05050a, 0.05);
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
-camera.position.set(0, 0, 14); // cinematic intro: starts far, pushes in
+camera.position.set(0, 0, 14);
 
 renderPass.scene  = scene;
 renderPass.camera = camera;
@@ -813,30 +838,30 @@ pmremGen.dispose();
 // ============================================================
 scene.add(new THREE.AmbientLight(0x1a0008, 3));
 
-const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.8); // warm key
+const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.8);
 keyLight.position.set(3, 5, 4);
 keyLight.castShadow = true;
-keyLight.shadow.mapSize.set(2048, 2048);           // debate: 2048 won
+keyLight.shadow.mapSize.set(2048, 2048);
 keyLight.shadow.camera.near = 0.5;
 keyLight.shadow.camera.far  = 30;
 scene.add(keyLight);
 
-const fillLight = new THREE.DirectionalLight(0x3355cc, 1.0); // cool fill
+const fillLight = new THREE.DirectionalLight(0x3355cc, 1.0);
 fillLight.position.set(-4, 1, 2);
 fillLight.castShadow = false;
 scene.add(fillLight);
 
-const rimLight = new THREE.DirectionalLight(0xff1133, 2.0);  // red rim
+const rimLight = new THREE.DirectionalLight(0xff1133, 2.0);
 rimLight.position.set(0, -5, -4);
 rimLight.castShadow = false;
 scene.add(rimLight);
 
-const superiorRim = new THREE.DirectionalLight(0xaaccff, 1.4); // cool blue-white superior
+const superiorRim = new THREE.DirectionalLight(0xaaccff, 1.4);
 superiorRim.position.set(0, 8, 2);
 superiorRim.castShadow = false;
 scene.add(superiorRim);
 
-const glowLight = new THREE.PointLight(0xff2244, 6, 7);      // heart glow
+const glowLight = new THREE.PointLight(0xff2244, 6, 7);
 glowLight.position.set(0, 0, 1.2);
 scene.add(glowLight);
 
@@ -851,7 +876,6 @@ const TEX = {
   rough: tl.load('./textures/hart_UV_low01_Roughness.hart_UV_low_defaultMat.png'),
 };
 TEX.base.colorSpace = THREE.SRGBColorSpace;
-// If textures appear upside-down on the model, set each to: flipY = false
 [TEX.base, TEX.norm, TEX.metal, TEX.rough].forEach(t => {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
 });
@@ -861,13 +885,13 @@ const heartMat = new THREE.MeshStandardMaterial({
   normalMap:       TEX.norm,
   metalnessMap:    TEX.metal,
   roughnessMap:    TEX.rough,
-  normalScale:     new THREE.Vector2(0.8, 0.8), // was 1.2 — match bake intent
+  normalScale:     new THREE.Vector2(0.8, 0.8),
   metalness:       0.0,
-  roughness:       0.68,  // wet cardiac tissue range (0.65–0.72)
-  envMapIntensity: 0.9,   // pulled back — not a mirror
+  roughness:       0.68,
+  envMapIntensity: 0.9,
 });
 
-// Fresnel rim — razor-thin, well below bloom threshold
+// Fresnel rim
 heartMat.onBeforeCompile = (shader) => {
   shader.fragmentShader = shader.fragmentShader.replace(
     '#include <dithering_fragment>',
@@ -878,48 +902,58 @@ heartMat.onBeforeCompile = (shader) => {
   );
 };
 
-// SSS shell — warmth whisper, NOT a glowing orb
+// SSS shell
 const sssMat = new THREE.MeshStandardMaterial({
   color:             0xff2244,
   emissive:          new THREE.Color(0xff1133),
-  emissiveIntensity: 0.06,  // was 0.18
+  emissiveIntensity: 0.06,
   side:              THREE.BackSide,
   transparent:       true,
-  opacity:           0.06,  // was 0.12
+  opacity:           0.06,
   depthWrite:        false,
   blending:          THREE.AdditiveBlending,
 });
 
 // ============================================================
-//  BACKGROUND 3-D LINES  (igloo-style — Three.js lines that
-//  interact with fog & look right from all camera angles)
+//  BACKGROUND 3-D LINES  (BOT-04 verdict: white, wide, tall)
+//  – 22 lines, color 0xffffff, opacity 0.04
+//  – Cylinder radius 14–20 units (behind the heart)
+//  – 60 segments per line, spans y:-16 to y:+16
+//  – Slow sine-wave undulation (0.18 rad/s)
 // ============================================================
+const BG_LINE_COUNT = 22;
 const bgLineObjs = [];
+
 function buildBgLines() {
-  for (let i = 0; i < 8; i++) {
-    const angle = (i / 8) * Math.PI * 2;
-    const pts   = new Float32Array(36 * 3);
+  for (let i = 0; i < BG_LINE_COUNT; i++) {
+    const angle = (i / BG_LINE_COUNT) * Math.PI * 2;
+    const pts   = new Float32Array(60 * 3);
     const geo   = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-    const mat   = new THREE.LineBasicMaterial({
-      color: 0x550011,
+    const mat = new THREE.LineBasicMaterial({
+      color:       0xffffff,
       transparent: true,
-      opacity: 0.13,
+      opacity:     0.04,
     });
     scene.add(new THREE.Line(geo, mat));
-    bgLineObjs.push({ pts, geo, angle, phase: Math.random() * Math.PI * 2 });
+    bgLineObjs.push({
+      pts, geo, angle,
+      phase:    Math.random() * Math.PI * 2,
+      freqMult: 0.8 + Math.random() * 0.8,
+      radius:   14 + Math.random() * 6,
+    });
   }
 }
 
 function updateBgLines(t) {
-  bgLineObjs.forEach(({ pts, geo, angle, phase }) => {
-    for (let j = 0; j < 36; j++) {
-      const v = j / 35;
-      const y = (v - 0.5) * 16;
-      const w = Math.sin(v * 5 + t * 0.25 + phase) * 0.35;
-      pts[j * 3]     = Math.sin(angle + w) * 9;
+  bgLineObjs.forEach(({ pts, geo, angle, phase, freqMult, radius }) => {
+    for (let j = 0; j < 60; j++) {
+      const v = j / 59;
+      const y = (v - 0.5) * 32;
+      const w = Math.sin(v * 4 * freqMult + t * 0.18 + phase) * 0.28;
+      pts[j * 3]     = Math.sin(angle + w) * radius;
       pts[j * 3 + 1] = y;
-      pts[j * 3 + 2] = Math.cos(angle + w) * 9;
+      pts[j * 3 + 2] = Math.cos(angle + w) * radius;
     }
     geo.attributes.position.needsUpdate = true;
   });
@@ -928,17 +962,84 @@ function updateBgLines(t) {
 buildBgLines();
 
 // ============================================================
-//  ANATOMY DATA  (rewritten — FK Grade 6.5–7.5 target)
-//  worldOffset: local-space position on the heart surface.
-//  Heart normalised to ~2.8-unit diameter, centred at origin.
-//  side: 'left' or 'right' — which side the info tab appears.
+//  TRAVELING LIGHT DOTS  (BOT-04/05: 40 Points, shader-based)
+//  Each dot rides the path of one of the 22 3D background lines.
+//  Speed varies per dot so they don't clump. The shader draws
+//  each as a soft radial white disk (additive blend = glow on
+//  dark background). Size pulses slowly with uTime.
+// ============================================================
+const TRAVELER_COUNT = 40;
+
+const travelers = Array.from({ length: TRAVELER_COUNT }, (_, i) => ({
+  lineIdx: i % BG_LINE_COUNT,
+  t:       Math.random(),
+  speed:   0.04 + Math.random() * 0.10,
+  phase:   Math.random() * Math.PI * 2,
+}));
+
+const travelerPositions = new Float32Array(TRAVELER_COUNT * 3);
+const travelerGeo = new THREE.BufferGeometry();
+travelerGeo.setAttribute('position', new THREE.BufferAttribute(travelerPositions, 3));
+
+const travelerMat = new THREE.ShaderMaterial({
+  uniforms: {
+    uTime:    { value: 0 },
+    uOpacity: { value: 0.80 },
+  },
+  vertexShader: `
+    uniform float uTime;
+    void main() {
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      float dist = length((modelViewMatrix * vec4(position, 1.0)).xyz);
+      // Base size 3px, plus a slow 0–3px pulse
+      gl_PointSize = max(1.5, (260.0 / dist) * (0.4 + 0.6 * abs(sin(uTime * 1.4))));
+    }
+  `,
+  fragmentShader: `
+    uniform float uOpacity;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      float alpha = (1.0 - smoothstep(0.3, 1.0, d)) * uOpacity;
+      gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
+    }
+  `,
+  transparent: true,
+  depthWrite:  false,
+  blending:    THREE.AdditiveBlending,
+});
+
+const travelerPoints = new THREE.Points(travelerGeo, travelerMat);
+scene.add(travelerPoints);
+
+function updateTravelers(elapsed, dt) {
+  travelers.forEach((tr, i) => {
+    tr.t = (tr.t + tr.speed * dt) % 1.0;
+
+    const line  = bgLineObjs[tr.lineIdx];
+    const pts   = line.pts;
+    const nSegs = 59;
+    const fIdx  = tr.t * nSegs;
+    const lo    = Math.floor(fIdx);
+    const hi    = Math.min(lo + 1, nSegs);
+    const frac  = fIdx - lo;
+
+    travelerPositions[i * 3]     = pts[lo * 3]     + (pts[hi * 3]     - pts[lo * 3])     * frac;
+    travelerPositions[i * 3 + 1] = pts[lo * 3 + 1] + (pts[hi * 3 + 1] - pts[lo * 3 + 1]) * frac;
+    travelerPositions[i * 3 + 2] = pts[lo * 3 + 2] + (pts[hi * 3 + 2] - pts[lo * 3 + 2]) * frac;
+  });
+  travelerGeo.attributes.position.needsUpdate = true;
+  travelerMat.uniforms.uTime.value = elapsed;
+}
+
+// ============================================================
+//  ANATOMY DATA
 // ============================================================
 const anatomy = [
   {
     id: 'aorta',
     name: 'Aorta',
     text: "The aorta is the biggest blood vessel in your body. It carries fresh, oxygen-rich blood out of the heart and delivers it everywhere — your brain, arms, and legs.",
-    worldOffset: new THREE.Vector3(-0.22, 1.20, 0.35),  // top arch, slightly left
+    worldOffset: new THREE.Vector3(-0.22, 1.20, 0.35),
     color: '#e8233a',
     side: 'left',
   },
@@ -946,7 +1047,7 @@ const anatomy = [
     id: 'pulmonary-artery',
     name: 'Pulmonary Artery',
     text: "This artery sends blood to your lungs so it can pick up fresh oxygen — like a pit stop. It is the only artery in your body that carries oxygen-poor blood.",
-    worldOffset: new THREE.Vector3(0.65, 0.80, 0.30),   // top right, separated from aorta
+    worldOffset: new THREE.Vector3(0.65, 0.80, 0.30),
     color: '#c92030',
     side: 'right',
   },
@@ -954,7 +1055,7 @@ const anatomy = [
     id: 'left-atrium',
     name: 'Left Atrium',
     text: "Fresh blood comes back from your lungs full of oxygen. It enters the left atrium first. Then the heart sends it to the left ventricle to be pumped out to your whole body.",
-    worldOffset: new THREE.Vector3(-0.82, 0.22, -0.25), // upper left, back side
+    worldOffset: new THREE.Vector3(-0.82, 0.22, -0.25),
     color: '#e03040',
     side: 'left',
   },
@@ -962,7 +1063,7 @@ const anatomy = [
     id: 'right-atrium',
     name: 'Right Atrium',
     text: "Used blood from all over your body arrives here. The right atrium collects it and passes it along to the right ventricle. From there, it heads to the lungs for a fresh oxygen refill.",
-    worldOffset: new THREE.Vector3(0.85, 0.18, 0.30),   // upper right
+    worldOffset: new THREE.Vector3(0.85, 0.18, 0.30),
     color: '#b01c2a',
     side: 'right',
   },
@@ -970,7 +1071,7 @@ const anatomy = [
     id: 'left-ventricle',
     name: 'Left Ventricle',
     text: "This is the heart's strongest pump. It squeezes hard to push blood from your heart all the way to your fingertips and toes. Its walls are extra thick because it works the hardest.",
-    worldOffset: new THREE.Vector3(-0.55, -0.88, 0.25), // lower left bulk
+    worldOffset: new THREE.Vector3(-0.55, -0.88, 0.25),
     color: '#d52033',
     side: 'left',
   },
@@ -978,7 +1079,7 @@ const anatomy = [
     id: 'right-ventricle',
     name: 'Right Ventricle',
     text: "The right ventricle pumps blood to your lungs. The lungs are close by, so this chamber doesn't need to work as hard. Even so, it pumps about 100,000 times every single day.",
-    worldOffset: new THREE.Vector3(0.58, -0.72, 0.42),  // lower right front
+    worldOffset: new THREE.Vector3(0.58, -0.72, 0.42),
     color: '#a8182a',
     side: 'right',
   },
@@ -988,14 +1089,13 @@ const anatomy = [
 //  HEART MESH
 // ============================================================
 const heartGroup = new THREE.Group();
-heartGroup.rotation.y = Math.PI / 12; // 15° initial tilt (debate spec)
+heartGroup.rotation.y = Math.PI / 12;
 scene.add(heartGroup);
 let heartReady = false;
 
 new FBXLoader().load(
   './Heart.fbx',
   (fbx) => {
-    // Normalise scale & centre
     const box  = new THREE.Box3().setFromObject(fbx);
     const ctr  = new THREE.Vector3();
     const size = new THREE.Vector3();
@@ -1005,13 +1105,11 @@ new FBXLoader().load(
     fbx.scale.setScalar(scale);
     fbx.position.sub(ctr.multiplyScalar(scale));
 
-    // Apply PBR material to every mesh + SSS shell clone
     fbx.traverse(ch => {
       if (ch.isMesh) {
         ch.castShadow    = true;
         ch.receiveShadow = true;
         ch.material      = heartMat;
-        // SSS shell: slightly scaled-up BackSide clone
         const sssClone = ch.clone();
         sssClone.material = sssMat;
         sssClone.scale.multiplyScalar(1.04);
@@ -1028,7 +1126,6 @@ new FBXLoader().load(
     setupScroll();
     setupHeroEntrance();
 
-    // Cinematic intro push: z:14 → 6 over 2.8s (starts far, settles to resting distance)
     gsap.to(camT, { z: 6, duration: 2.8, ease: 'power2.out', delay: 0.4 });
 
     setTimeout(() => {
@@ -1053,7 +1150,7 @@ new FBXLoader().load(
 // ============================================================
 const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
-const els     = {}; // id → { dot, pname, tab, line, active }
+const els     = {};
 const TAB_W   = 218;
 
 function buildLabels() {
@@ -1076,7 +1173,6 @@ function buildLabels() {
     tab.innerHTML = `<div class="a-tab-name">${a.name}</div><div class="a-tab-text">${a.text}</div>`;
     overlay.appendChild(tab);
 
-    // SVG curved bezier path (igloo style — elegant arc, not ruler line)
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     line.id = `ln-${a.id}`;
     line.setAttribute('stroke', a.color);
@@ -1098,7 +1194,6 @@ function updateLabelPositions() {
     const el = els[a.id];
     if (!el.active) return;
 
-    // Rotate world offset with the heart's current rotation
     const wp  = a.worldOffset.clone().applyQuaternion(heartGroup.quaternion);
     const ndc = wp.clone().project(camera);
     const sx  = (ndc.x  *  0.5 + 0.5) * window.innerWidth;
@@ -1124,10 +1219,9 @@ function updateLabelPositions() {
 
     const lx2 = a.side === 'right' ? tabX : tabX + TAB_W;
     const ly2 = tabY + 34;
-    // Curved bezier: control point perpendicular to line midpoint
     const mx = (sx + lx2) / 2;
     const my = (sy + ly2) / 2;
-    const cpx = mx + (ly2 - sy) * 0.25; // perpendicular offset
+    const cpx = mx + (ly2 - sy) * 0.25;
     const cpy = my - (lx2 - sx) * 0.25;
     el.line.setAttribute('d', `M ${sx} ${sy} Q ${cpx} ${cpy} ${lx2} ${ly2}`);
   });
@@ -1191,7 +1285,6 @@ function setActivePDot(i) {
   if (i === activePDot) return;
   activePDot = i;
   pDotEls.forEach((d, j) => d.classList.toggle('active', j === i));
-  // Fill connectors up to active index
   pConnectors.forEach((c, j) => c.classList.toggle('filled', j < i));
 }
 
@@ -1206,7 +1299,6 @@ const N         = anatomy.length;
 const DWELL     = 1.25 / N;
 
 function setupScroll() {
-  // ── Hero parallax exit — text drifts upward at different speeds ──
   gsap.to('.hero-eyebrow', {
     opacity: 0, yPercent: -12, ease: 'none',
     scrollTrigger: { trigger: '#hero', start: 'top top', end: 'bottom top', scrub: true },
@@ -1224,7 +1316,6 @@ function setupScroll() {
     scrollTrigger: { trigger: '#hero', start: 'top top', end: '25% top', scrub: true },
   });
 
-  // ── Camera pre-position as hero scrolls off ──
   ScrollTrigger.create({
     trigger: '#hero',
     start: 'top top',
@@ -1237,14 +1328,13 @@ function setupScroll() {
     },
   });
 
-  // ── Spiral ──
   ScrollTrigger.create({
     trigger:    '#spiral-section',
     start:      'top top',
     end:        `+=${SCROLL_PX}`,
     pin:        true,
     pinSpacing: true,
-    scrub:      0.3,   // tiny lag gives cinematic weight without molasses feel
+    scrub:      0.3,
     onUpdate(self) {
       scrollProg = self.progress;
       inSpiral   = true;
@@ -1263,14 +1353,12 @@ function setupScroll() {
     onEnter() {
       nav.classList.add('visible');
       document.getElementById('ekg-bar').classList.add('visible');
-      // ZoomPunch: fast push-in then breathe out
       gsap.timeline()
         .to(camT, { z: 3.2, duration: 0.35, ease: 'power3.in' })
         .to(camT, { z: 5.6, duration: 0.6,  ease: 'power3.out' });
     },
     onLeave() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
-      // Camera exhales outward, then settles
       camT.z = 8.0; camT.y = 0.4;
       setTimeout(() => { if (!inSpiral) { camT.z = 6.0; camT.y = 0.0; } }, 800);
     },
@@ -1284,12 +1372,10 @@ function setupScroll() {
     },
   });
 
-  // ── Outro — dramatic entrance ──
   gsap.set('.outro-h2',   { opacity: 1 });
   gsap.set('.outro-body', { opacity: 0, filter: 'blur(6px)' });
   gsap.set('.outro-stat', { opacity: 0, letterSpacing: '0.6em' });
 
-  // "Always" slides from left, "Beating." from right — collision
   gsap.from('.ow1', {
     x: -70, opacity: 0, duration: 1.0, ease: 'expo.out',
     scrollTrigger: { trigger: '#outro', start: 'top 72%' },
@@ -1303,12 +1389,10 @@ function setupScroll() {
     clearProps: 'filter',
     scrollTrigger: { trigger: '#outro', start: 'top 72%' },
   });
-  // Stat: letter-spacing contracts inward — typographic reveal
   gsap.to('.outro-stat', {
     opacity: 1, letterSpacing: '0.26em', duration: 1.4, delay: 0.7, ease: 'power3.out',
     scrollTrigger: { trigger: '#outro', start: 'top 72%' },
   });
-  // Final heartbeat glow flash
   ScrollTrigger.create({
     trigger: '#outro', start: 'top 72%', once: true,
     onEnter() {
@@ -1320,7 +1404,6 @@ function setupScroll() {
 }
 
 function setupHeroEntrance() {
-  // Eyebrow scramble reveal
   const eyebrow = document.querySelector('.hero-eyebrow');
   const orig    = eyebrow.textContent;
   const chars   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ·0123456789';
@@ -1339,7 +1422,6 @@ function setupHeroEntrance() {
     }, 40);
   }, 300);
 
-  // Hero H1 — overflow mask word reveal (clip-curtain technique)
   gsap.from('.hero-inner', {
     yPercent: 110,
     skewX: -3,
@@ -1350,7 +1432,6 @@ function setupHeroEntrance() {
     clearProps: 'skewX',
   });
 
-  // HUMAN glow pulse after it lands
   gsap.to('h1 em', {
     textShadow: '0 0 60px rgba(255,51,85,0.9), 0 0 120px rgba(255,51,85,0.4)',
     duration: 0.5,
@@ -1358,7 +1439,6 @@ function setupHeroEntrance() {
     ease: 'power2.out',
   });
 
-  // Subtitle blur-clear
   gsap.from('.hero-sub', {
     opacity: 0, y: 12, filter: 'blur(6px)', duration: 1.1, delay: 1.1, ease: 'power3.out',
     clearProps: 'filter',
@@ -1369,12 +1449,11 @@ function setupHeroEntrance() {
 // ============================================================
 //  CAMERA  (THREE.MathUtils.damp — frame-rate independent)
 // ============================================================
-const camT = { x:0, y:0, z:14 }; // starts at 14 for cinematic intro
-const CAM_LAMBDA = 6.0; // tighter since Lenis already smooths input
+const camT = { x:0, y:0, z:14 };
+const CAM_LAMBDA = 6.0;
 
 function spiralCamera(p) {
   const theta  = p * Math.PI * 4;
-  // Inward spiral + chaos wobble (secondary oscillation = organic, not geometric)
   const wobble = Math.sin(p * Math.PI * 7) * 0.18;
   const radius = 6.5 - p * 2.3 + wobble;
   const phi    = Math.sin(p * Math.PI * 2) * 0.55;
@@ -1384,22 +1463,59 @@ function spiralCamera(p) {
 }
 
 // ============================================================
-//  HEARTBEAT  (lub-dub scale + synth audio)
+//  HEARTBEAT  (BOT-01 + BOT-02 combined final verdict)
+//
+//  CHANGES FROM ORIGINAL:
+//  1. Lub amplitude 0.11  (was 0.056) — doubled for visible screen motion
+//  2. Dub amplitude 0.068 (was 0.034) — doubled
+//  3. Asymmetric axis scaling: scale.set(sx, sy, sz) not scale.setScalar(s)
+//     - sx = 1 + beat * 1.02  (radial X: slight thickening)
+//     - sy = 1 - beat * 0.80  (long axis Y: shortens during systole)
+//     - sz = 1 + beat * 1.18  (radial Z: more than X, apex twist effect)
+//  4. Glow range: 3 + sin(beatPhase) * 4.5   (was 5 + sin(...) * 2.2)
+//     Floor ~0.5, peak ~7.5 — real breathing not gentle wobble
+//  5. Soft Z-axis apex rock: synchronized to beatPhase (BOT-01 spec)
 // ============================================================
-let beatT   = 0;
+let beatT    = 0;
 let audioCtx = null;
 let soundOn  = localStorage.getItem('heartSoundOn') === 'true';
 
+const TWO_PI = Math.PI * 2;
+
 function heartbeatScale(dt) {
   beatT += dt;
-  const period = 60 / 70; // 70 BPM
-  const t = (beatT % period) / period;
-  let s = 1;
-  if      (t < 0.08) s = 1 + Math.sin((t / 0.08)          * Math.PI) * 0.056; // lub
-  else if (t < 0.18) s = 1;
-  else if (t < 0.26) s = 1 + Math.sin(((t - 0.18) / 0.08) * Math.PI) * 0.034; // dub
-  heartGroup.scale.setScalar(s);
-  glowLight.intensity = 5 + Math.sin(beatT * (70 / 60) * Math.PI * 2) * 2.2;
+  const bpm    = 70;
+  const period = 60 / bpm;
+  const tNorm  = (beatT % period) / period;
+
+  // Compute lub and dub envelope values (0–1)
+  let lub = 0;
+  let dub = 0;
+  if (tNorm < 0.08) {
+    lub = Math.sin((tNorm / 0.08) * Math.PI);
+  } else if (tNorm >= 0.18 && tNorm < 0.26) {
+    dub = Math.sin(((tNorm - 0.18) / 0.08) * Math.PI);
+  }
+
+  // BOT-02: doubled amplitudes
+  const lubAmp = 0.11;
+  const dubAmp = 0.068;
+  const beat   = lub * lubAmp + dub * dubAmp;
+
+  // BOT-01: asymmetric cardiac squeeze
+  // LV systole: radial axes thicken, long axis shortens, Z > X (apex twist left)
+  const sx = 1.0 + beat * 1.02;
+  const sy = 1.0 - beat * 0.80;
+  const sz = 1.0 + beat * 1.18;
+  heartGroup.scale.set(sx, sy, sz);
+
+  // BOT-01: apex rocking on Z, synchronized with beat cycle
+  const beatPhase = beatT * (bpm / 60) * TWO_PI;
+  const targetZRock = Math.sin(beatPhase) * 0.04;
+  heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
+
+  // BOT-02: breathing glow — wide range, floor ~0.5 (clamped), peak ~7.5
+  glowLight.intensity = Math.max(0.5, 3.0 + Math.sin(beatPhase) * 4.5);
 }
 
 // Synthetic heartbeat via Web Audio API (no audio file needed)
@@ -1408,8 +1524,8 @@ function scheduleBeats() {
   if (!audioCtx || !soundOn) return;
   const now = audioCtx.currentTime;
   if (now >= nextBeatTime - 0.1) {
-    synthThud(nextBeatTime,        60, 0.35, 0.12); // lub
-    synthThud(nextBeatTime + 0.13, 75, 0.22, 0.09); // dub
+    synthThud(nextBeatTime,        60, 0.35, 0.12);
+    synthThud(nextBeatTime + 0.13, 75, 0.22, 0.09);
     nextBeatTime += 60 / 70;
   }
 }
@@ -1456,21 +1572,13 @@ soundBtn.addEventListener('click', () => {
 
   function pqrst(t) {
     const phase = (t % 1.0);
-    // P wave
     if (phase < 0.10) return 0.15 * Math.sin((phase / 0.10) * Math.PI);
-    // PR segment
     if (phase < 0.18) return 0;
-    // Q dip
     if (phase < 0.22) return -0.08 * Math.sin(((phase - 0.18) / 0.04) * Math.PI);
-    // R spike
     if (phase < 0.30) return Math.sin(((phase - 0.22) / 0.08) * Math.PI);
-    // S dip
     if (phase < 0.36) return -0.12 * Math.sin(((phase - 0.30) / 0.06) * Math.PI);
-    // ST segment
     if (phase < 0.44) return 0;
-    // T wave
     if (phase < 0.58) return 0.22 * Math.sin(((phase - 0.44) / 0.14) * Math.PI);
-    // isoelectric
     return 0;
   }
 
@@ -1505,14 +1613,13 @@ soundBtn.addEventListener('click', () => {
   }
 
   function tickEKG(dt) {
-    ekgT    += dt * 1.15; // speed: ~1.15 cycles/sec = ~69 BPM
+    ekgT    += dt * 1.15;
     const v  = pqrst(ekgT);
     ekgBuf[ekgHead] = v;
     ekgHead = (ekgHead + 1) % BUF;
     drawEKG();
   }
 
-  // Expose for render loop
   window._tickEKG = tickEKG;
 }
 
@@ -1525,55 +1632,56 @@ let chromaVelocity = 0;
 
 (function render() {
   requestAnimationFrame(render);
-  const dt = clock.getDelta();
+  const dt      = clock.getDelta();
+  const elapsed = clock.elapsedTime;
 
   // Scroll velocity → chromatic aberration spike
-  const curScrollY = lenis.scroll || 0;
+  const curScrollY  = lenis.scroll || 0;
   const scrollDelta = Math.abs(curScrollY - lastScrollY);
   lastScrollY = curScrollY;
   chromaVelocity += (scrollDelta * 0.00015 - chromaVelocity) * 0.12;
   chromaPass.uniforms.uStrength.value = 0.0008 + chromaVelocity;
-  grainPass.uniforms.uTime.value = clock.elapsedTime * 0.8;
+  grainPass.uniforms.uTime.value = elapsed * 0.8;
 
   if (heartReady) {
-    heartGroup.rotation.y += dt * (inSpiral ? 0.35 : 0.20); // faster during spiral
+    // BOT-01: faster Y rotation — 0.45 idle / 0.55 spiral (was 0.20 / 0.35)
+    // At 0.45 rad/s idle: one full rotation in ~14s. Clearly perceptible.
+    heartGroup.rotation.y += dt * (inSpiral ? 0.55 : 0.45);
+
     if (inSpiral) {
-      // Subtle X wobble — heart tumbles slightly as camera orbits
-      heartGroup.rotation.x = Math.sin(clock.elapsedTime * 0.4) * 0.06;
+      heartGroup.rotation.x = Math.sin(elapsed * 0.4) * 0.06;
     } else {
       heartGroup.rotation.x = THREE.MathUtils.damp(heartGroup.rotation.x, 0, 2, dt);
     }
+
+    // heartbeatScale manages scale (multi-axis), rotation.z (apex rock), and glowLight
     heartbeatScale(dt);
   }
 
   // Camera target
   if (inSpiral) {
     spiralCamera(scrollProg);
-    // Banking roll: heart tilts into the orbit
+    // Banking roll during spiral — layered on top of heartbeat z-rock
     const theta = scrollProg * Math.PI * 4;
-    heartGroup.rotation.z = THREE.MathUtils.damp(
-      heartGroup.rotation.z, Math.sin(theta * 0.5) * 0.08, 3.5, dt
-    );
-  } else {
-    heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, 0, 3.5, dt);
-    // camT is managed by GSAP tweens (cinematic intro, spiral enter/leave)
-    // just let camera.position damp toward wherever camT currently sits
+    const bankTarget = Math.sin(theta * 0.5) * 0.08;
+    heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, bankTarget, 3.5, dt);
   }
 
   // EKG tick
   if (window._tickEKG) window._tickEKG(dt);
 
-  // Frame-rate-independent smooth camera (debate: replace .lerp(0.05))
+  // Frame-rate-independent smooth camera
   camera.position.x = THREE.MathUtils.damp(camera.position.x, camT.x, CAM_LAMBDA, dt);
   camera.position.y = THREE.MathUtils.damp(camera.position.y, camT.y, CAM_LAMBDA, dt);
   camera.position.z = THREE.MathUtils.damp(camera.position.z, camT.z, CAM_LAMBDA, dt);
   camera.lookAt(0, 0, 0);
 
-  updateBgLines(clock.elapsedTime);
+  updateBgLines(elapsed);
+  updateTravelers(elapsed, dt);
   updateLabelPositions();
   scheduleBeats();
 
-  composer.render(); // bloom + FXAA + output
+  composer.render();
 })();
 
 // ============================================================
