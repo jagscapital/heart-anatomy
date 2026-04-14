@@ -697,7 +697,9 @@ ScrollTrigger.scrollerProxy(document.documentElement, {
 });
 lenis.on('scroll', ScrollTrigger.update);
 
-// ── Custom Cursor ────────────────────────────────────────────
+// ── Mouse tracking (cursor + heart parallax) ─────────────────
+let mouseNX = 0, mouseNY = 0;   // normalized -1..1
+let mouseParaX = 0, mouseParaY = 0; // smoothed for heart tilt
 {
   const outer = document.getElementById('cursor-outer');
   const dot   = document.getElementById('cursor-dot');
@@ -705,6 +707,8 @@ lenis.on('scroll', ScrollTrigger.update);
   let ox = cx, oy = cy;
   window.addEventListener('mousemove', (e) => {
     cx = e.clientX; cy = e.clientY;
+    mouseNX = (e.clientX / window.innerWidth  - 0.5) * 2;
+    mouseNY = (e.clientY / window.innerHeight - 0.5) * 2;
     dot.style.transform = `translate(${cx - 3}px, ${cy - 3}px)`;
   });
   (function animCursor() {
@@ -915,51 +919,76 @@ const sssMat = new THREE.MeshStandardMaterial({
 });
 
 // ============================================================
-//  BACKGROUND 3-D LINES  (BOT-04 verdict: white, wide, tall)
-//  – 22 lines, color 0xffffff, opacity 0.04
-//  – Cylinder radius 14–20 units (behind the heart)
-//  – 60 segments per line, spans y:-16 to y:+16
-//  – Slow sine-wave undulation (0.18 rad/s)
+//  PARTICLE FIELD  (Active Theory style — drifting star field)
+//  ~1000 pts, cool white, depth-based opacity, slow individual drift
 // ============================================================
-const BG_LINE_COUNT = 22;
-const bgLineObjs = [];
+const PARTICLE_COUNT = 1000;
+const pPositions = new Float32Array(PARTICLE_COUNT * 3);
+const pVelocities = [];
 
-function buildBgLines() {
-  for (let i = 0; i < BG_LINE_COUNT; i++) {
-    const angle = (i / BG_LINE_COUNT) * Math.PI * 2;
-    const pts   = new Float32Array(60 * 3);
-    const geo   = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(pts, 3));
-    const mat = new THREE.LineBasicMaterial({
-      color:       0xffffff,
-      transparent: true,
-      opacity:     0.04,
-    });
-    scene.add(new THREE.Line(geo, mat));
-    bgLineObjs.push({
-      pts, geo, angle,
-      phase:    Math.random() * Math.PI * 2,
-      freqMult: 0.8 + Math.random() * 0.8,
-      radius:   14 + Math.random() * 6,
-    });
-  }
-}
-
-function updateBgLines(t) {
-  bgLineObjs.forEach(({ pts, geo, angle, phase, freqMult, radius }) => {
-    for (let j = 0; j < 60; j++) {
-      const v = j / 59;
-      const y = (v - 0.5) * 32;
-      const w = Math.sin(v * 4 * freqMult + t * 0.18 + phase) * 0.28;
-      pts[j * 3]     = Math.sin(angle + w) * radius;
-      pts[j * 3 + 1] = y;
-      pts[j * 3 + 2] = Math.cos(angle + w) * radius;
-    }
-    geo.attributes.position.needsUpdate = true;
+for (let i = 0; i < PARTICLE_COUNT; i++) {
+  // Spread in a large sphere, z pushed back
+  pPositions[i*3]   = (Math.random()-0.5) * 40;
+  pPositions[i*3+1] = (Math.random()-0.5) * 24;
+  pPositions[i*3+2] = -5 - Math.random() * 30; // behind the heart
+  pVelocities.push({
+    x: (Math.random()-0.5) * 0.002,
+    y: (Math.random()-0.5) * 0.002,
+    z: (Math.random()-0.5) * 0.001,
   });
 }
 
+const particleGeo = new THREE.BufferGeometry();
+particleGeo.setAttribute('position', new THREE.BufferAttribute(pPositions, 3));
+
+const particleMat = new THREE.ShaderMaterial({
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    varying float vDepth;
+    void main() {
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      vDepth = clamp(-mvPos.z / 35.0, 0.0, 1.0); // 0=near, 1=far
+      gl_Position  = projectionMatrix * mvPos;
+      gl_PointSize = mix(2.2, 0.6, vDepth);
+    }
+  `,
+  fragmentShader: `
+    varying float vDepth;
+    void main() {
+      float d = length(gl_PointCoord - 0.5) * 2.0;
+      float a = (1.0 - smoothstep(0.3, 1.0, d)) * mix(0.75, 0.08, vDepth);
+      gl_FragColor = vec4(0.85, 0.90, 1.0, a); // cool white/pale blue
+    }
+  `,
+  transparent: true,
+  depthWrite:  false,
+  blending:    THREE.AdditiveBlending,
+});
+
+const particleSystem = new THREE.Points(particleGeo, particleMat);
+scene.add(particleSystem);
+
+// Dummy for old traveler/bgLine refs that may still exist below
+const bgLineObjs = [];
+const BG_LINE_COUNT = 0;
+function buildBgLines() {}
+function updateBgLines() {}
 buildBgLines();
+
+function updateParticles(dt) {
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    pPositions[i*3]   += pVelocities[i].x;
+    pPositions[i*3+1] += pVelocities[i].y;
+    pPositions[i*3+2] += pVelocities[i].z;
+    // Wrap at boundaries
+    if (pPositions[i*3]   >  20) pPositions[i*3]   = -20;
+    if (pPositions[i*3]   < -20) pPositions[i*3]   =  20;
+    if (pPositions[i*3+1] >  12) pPositions[i*3+1] = -12;
+    if (pPositions[i*3+1] < -12) pPositions[i*3+1] =  12;
+  }
+  particleGeo.attributes.position.needsUpdate = true;
+  particleMat.uniforms.uTime.value += dt;
+}
 
 // ============================================================
 //  TRAVELING LIGHT DOTS  (BOT-04/05: 40 Points, shader-based)
@@ -1644,14 +1673,17 @@ let chromaVelocity = 0;
   grainPass.uniforms.uTime.value = elapsed * 0.8;
 
   if (heartReady) {
-    // Idle: gentle float/rock — NO continuous spin. Heart sways like it's suspended.
-    if (!inSpiral) {
-      heartGroup.rotation.y  = Math.sin(elapsed * 0.22) * 0.18; // slow side-to-side rock
-      heartGroup.rotation.x  = Math.sin(elapsed * 0.15) * 0.06; // subtle tilt
-    }
-    // During spiral: camera orbits the heart, heart itself just keeps its rock
-    // (camera movement creates the orbit illusion without nauseating spin)
+    // Smooth mouse parallax — heart tilts toward cursor (Active Theory signature)
+    // lerp 0.04 = ~1-2 second lag, feels magnetic and weighty
+    mouseParaX += (mouseNX * 0.30 - mouseParaX) * 0.04;
+    mouseParaY += (mouseNY * 0.20 - mouseParaY) * 0.04;
 
+    if (!inSpiral) {
+      // Float: slow sinusoidal drift (breathing feel)
+      const floatY = Math.sin(elapsed * 0.5) * 0.06;
+      heartGroup.rotation.y = mouseParaX + Math.sin(elapsed * 0.22) * 0.08;
+      heartGroup.rotation.x = mouseParaY * -1 + floatY;
+    }
     heartbeatScale(dt);
   }
 
@@ -1673,8 +1705,7 @@ let chromaVelocity = 0;
   camera.position.z = THREE.MathUtils.damp(camera.position.z, camT.z, CAM_LAMBDA, dt);
   camera.lookAt(0, 0, 0);
 
-  updateBgLines(elapsed);
-  updateTravelers(elapsed, dt);
+  updateParticles(dt);
   updateLabelPositions();
   scheduleBeats();
 
