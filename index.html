@@ -709,62 +709,69 @@
     /* HERO subtitle — brighter on deep dark bg */
     .hero-sub { color: rgba(255,255,255,0.48) !important; }
 
-    /* ── FACTS ORBITAL OVERLAY ─────────────────────────────── */
+    /* ── SPINNING FACTS RING ─────────────────────────────────── */
     #facts-overlay {
       position: fixed;
       inset: 0;
       z-index: 20;
       pointer-events: none;
       opacity: 0;
-      transition: opacity 0.5s ease;
     }
-    #facts-overlay.visible {
-      opacity: 1;
-      pointer-events: none;
-    }
-    #facts-lines {
+    #facts-overlay.visible { opacity: 1; }
+
+    /* Perspective stage — centred on the heart */
+    #facts-ring-wrap {
       position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      overflow: visible;
-      pointer-events: none;
+      top: 50%;
+      left: 50%;
+      width: 0;
+      height: 0;
+      perspective: 1100px;
+      perspective-origin: 50% 50%;
     }
-    #facts-lines line {
-      stroke: rgba(255,255,255,0.18);
-      stroke-width: 1;
-      transition: stroke 0.3s ease;
+
+    /* The ring itself — GSAP rotates this around Y */
+    #facts-ring {
+      position: absolute;
+      transform-style: preserve-3d;
+      will-change: transform;
     }
-    #facts-lines line.active {
-      stroke: rgba(255,255,255,0.55);
-      stroke-width: 1.5;
-    }
+
+    /* Individual cards live on the ring surface */
     .fact-card {
       position: absolute;
-      width: 200px;
-      background: rgba(8, 4, 14, 0.72);
-      border: 1px solid rgba(255,255,255,0.10);
-      border-radius: 12px;
-      padding: 14px 16px;
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+      width: 210px;
+      /* left/top centres card on the ring hub; translateZ set inline per card */
+      left: -105px;
+      top: -75px;
+      background: rgba(6, 2, 12, 0.78);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 14px;
+      padding: 16px 18px;
+      backdrop-filter: blur(22px);
+      -webkit-backdrop-filter: blur(22px);
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
       will-change: transform, opacity;
-      opacity: 0;
-      transition: border-color 0.3s ease, box-shadow 0.3s ease;
-      pointer-events: auto;
-      cursor: default;
+      opacity: 0.22;
+      transition: border-color 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
+      pointer-events: none;
     }
     .fact-card.active {
-      border-color: rgba(255,255,255,0.28);
-      box-shadow: 0 0 28px rgba(255,255,255,0.06);
+      opacity: 1;
+      border-color: rgba(255,255,255,0.30);
+      box-shadow: 0 0 36px rgba(255,255,255,0.07), 0 0 0 1px rgba(255,255,255,0.05);
     }
+    .fact-card.pro { border-left: 2px solid rgba(79,195,247,0.50); }
+    .fact-card.con { border-right: 2px solid rgba(255,107,107,0.50); }
+
     .fact-card-tag {
       font-family: 'Space Grotesk', sans-serif;
       font-size: 9px;
       font-weight: 700;
-      letter-spacing: 0.18em;
+      letter-spacing: 0.20em;
       text-transform: uppercase;
-      margin-bottom: 6px;
+      margin-bottom: 7px;
     }
     .fact-card.pro .fact-card-tag { color: #4fc3f7; }
     .fact-card.con .fact-card-tag { color: #ff6b6b; }
@@ -773,25 +780,23 @@
       font-size: 13px;
       font-weight: 700;
       color: #fff;
-      margin: 0 0 5px 0;
+      margin: 0 0 6px 0;
       line-height: 1.3;
     }
     .fact-card-body {
       font-family: 'Space Grotesk', sans-serif;
       font-size: 11px;
-      color: rgba(255,255,255,0.60);
-      line-height: 1.5;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.55;
       margin: 0;
     }
-    .fact-card.pro { border-left: 2px solid rgba(79,195,247,0.40); }
-    .fact-card.con { border-right: 2px solid rgba(255,107,107,0.40); }
 
-    /* facts section heading */
+    /* Heading above the ring */
     #facts-heading {
       position: fixed;
       top: 50%;
       left: 50%;
-      transform: translate(-50%, calc(-50% - 200px));
+      transform: translate(-50%, calc(-50% - 210px));
       z-index: 21;
       text-align: center;
       pointer-events: none;
@@ -801,19 +806,19 @@
     #facts-heading.visible { opacity: 1; }
     #facts-heading h2 {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(18px, 2.5vw, 28px);
+      font-size: clamp(16px, 2vw, 24px);
       font-weight: 700;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.80);
+      color: rgba(255,255,255,0.75);
       margin: 0 0 4px 0;
     }
     #facts-heading p {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: 12px;
-      letter-spacing: 0.12em;
+      font-size: 11px;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.32);
+      color: rgba(255,255,255,0.28);
       margin: 0;
     }
 
@@ -954,9 +959,10 @@
 </div>
 
 <div id="facts-overlay">
-  <svg id="facts-lines" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
+  <div id="facts-ring-wrap">
+    <div id="facts-ring">
 
-  <!-- PRO cards: left arc -->
+  <!-- PRO cards (idx 0-3) -->
   <div class="fact-card pro" data-idx="0">
     <div class="fact-card-tag">Pro</div>
     <h3 class="fact-card-title">Never Sleeps</h3>
@@ -978,7 +984,7 @@
     <p class="fact-card-body">Pumps blood through 60,000 miles of blood vessels — enough to circle Earth twice.</p>
   </div>
 
-  <!-- CON cards: right arc -->
+  <!-- CON cards (idx 4-7) -->
   <div class="fact-card con" data-idx="4">
     <div class="fact-card-tag">Con</div>
     <h3 class="fact-card-title">No. 1 Killer</h3>
@@ -999,7 +1005,10 @@
     <h3 class="fact-card-title">Stress Damage</h3>
     <p class="fact-card-body">Chronic stress floods the body with cortisol, which stiffens arteries and weakens the heart muscle over time.</p>
   </div>
-</div>
+
+    </div><!-- #facts-ring -->
+  </div><!-- #facts-ring-wrap -->
+</div><!-- #facts-overlay -->
 
 <!-- ── Lenis smooth scroll ──────────────────────── -->
 <script src="https://cdn.jsdelivr.net/npm/@studio-freight/lenis@1.0.42/dist/lenis.umd.js"></script>
@@ -2399,137 +2408,71 @@ function setupScroll() {
   });
 }
 
-// ── FACTS ORBITAL SECTION ─────────────────────────────────────
-const FACTS_SCROLL_PX = window.innerHeight * 10; // 10 screen-heights to scroll through all 8 cards
-
-const FACT_CARDS_DATA = [
-  // PRO: left ellipse arc  (dx negative = left side)
-  { dx: -0.30, dy: -0.30, idx: 0 }, // upper-left
-  { dx: -0.40, dy: -0.10, idx: 1 }, // mid-upper-left
-  { dx: -0.40, dy:  0.10, idx: 2 }, // mid-lower-left
-  { dx: -0.30, dy:  0.30, idx: 3 }, // lower-left
-  // CON: right ellipse arc (dx positive = right side)
-  { dx:  0.30, dy: -0.30, idx: 4 }, // upper-right
-  { dx:  0.40, dy: -0.10, idx: 5 }, // mid-upper-right
-  { dx:  0.40, dy:  0.10, idx: 6 }, // mid-lower-right
-  { dx:  0.30, dy:  0.30, idx: 7 }, // lower-right
-];
+// ── SPINNING FACTS RING ────────────────────────────────────────
+const FACTS_SCROLL_PX = window.innerHeight * 10;
+const FACTS_NUM       = 8;
+const FACTS_ANGLE     = 360 / FACTS_NUM;   // 45° per card
+const FACTS_RADIUS    = 340;               // px translateZ for CSS perspective
 
 function setupFactsSection() {
   const overlay  = document.getElementById('facts-overlay');
   const heading  = document.getElementById('facts-heading');
-  const svgEl    = document.getElementById('facts-lines');
+  const ring     = document.getElementById('facts-ring');
   const cardEls  = Array.from(document.querySelectorAll('.fact-card'));
 
   let factsActive   = false;
   let currentActive = -1;
 
-  // Set initial GSAP state (collapsed + invisible)
-  gsap.set(cardEls, { opacity: 0, scale: 0.82, y: 8 });
+  // Place each card on the ring at its angle slot
+  cardEls.forEach((card, i) => {
+    card.style.transform = `rotateY(${i * FACTS_ANGLE}deg) translateZ(${FACTS_RADIUS}px)`;
+    // Cards face viewer only on the front hemisphere; back cards hidden by backface-visibility
+  });
 
-  // Pre-position cards based on viewport fractions
-  function positionCards() {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const cx = vw * 0.5;
-    const cy = vh * 0.5;
-
-    cardEls.forEach((card, i) => {
-      const d = FACT_CARDS_DATA[i];
-      // Offset in pixels from viewport centre
-      const ox = d.dx * vw;
-      const oy = d.dy * vh;
-      // Place card so its centre is at (cx+ox, cy+oy)
-      const cardW = 200; // px, matches CSS
-      const cardH = card.offsetHeight || 110;
-      card.style.left = (cx + ox - cardW * 0.5) + 'px';
-      card.style.top  = (cy + oy - cardH * 0.5) + 'px';
-    });
-  }
-  positionCards();
-  window.addEventListener('resize', positionCards);
-
-  // Build/update SVG connector lines from viewport centre to each card centre
-  function updateLines(activeIdx) {
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const cx = vw * 0.5;
-    const cy = vh * 0.5;
-
-    // Clear existing lines
-    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
-
-    cardEls.forEach((card, i) => {
-      const d = FACT_CARDS_DATA[i];
-      const ox = d.dx * vw;
-      const oy = d.dy * vh;
-      const tx = cx + ox;
-      const ty = cy + oy;
-
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line.setAttribute('x1', cx);
-      line.setAttribute('y1', cy);
-      line.setAttribute('x2', tx);
-      line.setAttribute('y2', ty);
-      if (i === activeIdx) line.classList.add('active');
-      svgEl.appendChild(line);
-    });
-  }
-
-  // Entrance animation: stagger cards in with spring
-  function animateIn() {
-    gsap.to(overlay, { opacity: 1, duration: 0.4, ease: 'power2.out' });
-    gsap.to(heading, { opacity: 1, duration: 0.4, ease: 'power2.out' });
-    heading.classList.add('visible');
-    overlay.classList.add('visible');
-
-    cardEls.forEach((card, i) => {
-      gsap.to(card, {
-        opacity: 0.28,
-        scale: 0.97,
-        y: 0,
-        duration: 0.7,
-        delay: i * 0.08,
-        ease: 'back.out(1.6)',
+  // Spin ring so card `idx` faces the viewer (rotateY = -idx * ANGLE_STEP)
+  function spinTo(idx, instant) {
+    const target = -idx * FACTS_ANGLE;
+    if (instant) {
+      gsap.set(ring, { rotateY: target });
+    } else {
+      // Short-path rotation (always spin the nearest direction)
+      const current = gsap.getProperty(ring, 'rotateY') || 0;
+      let delta = ((target - current) % 360 + 540) % 360 - 180;
+      gsap.to(ring, {
+        rotateY: current + delta,
+        duration: 0.55,
+        ease: 'power2.inOut',
+        overwrite: true,
       });
-    });
-    updateLines(-1);
+    }
   }
 
-  // Exit animation
-  function animateOut() {
-    gsap.to(overlay, { opacity: 0, duration: 0.35, ease: 'power2.in' });
-    gsap.to(heading, { opacity: 0, duration: 0.35, ease: 'power2.in' });
-    heading.classList.remove('visible');
-    overlay.classList.remove('visible');
-    cardEls.forEach((card) => {
-      gsap.to(card, { opacity: 0, scale: 0.82, y: 8, duration: 0.25 });
-      card.classList.remove('active', 'inactive');
-    });
-    currentActive = -1;
-    // Clear SVG lines
-    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
-  }
-
-  // Activate a specific card
   function activateCard(idx) {
     if (idx === currentActive) return;
     currentActive = idx;
+    spinTo(idx, false);
     cardEls.forEach((card, i) => {
-      card.classList.remove('active', 'inactive');
-      if (i === idx) {
-        card.classList.add('active');
-        gsap.to(card, { opacity: 1, scale: 1.04, y: 0, duration: 0.35, ease: 'power2.out' });
-      } else {
-        card.classList.add('inactive');
-        gsap.to(card, { opacity: 0.25, scale: 0.96, y: 0, duration: 0.35, ease: 'power2.out' });
-      }
+      card.classList.toggle('active', i === idx);
     });
-    updateLines(idx);
   }
 
-  // Camera pull-back when facts section is active
-  const factsCamZ = 10.0;
+  function animateIn() {
+    overlay.classList.add('visible');
+    heading.classList.add('visible');
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out' });
+    gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out' });
+    // Pop ring in from slightly below
+    gsap.fromTo(ring, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: 'back.out(1.4)' });
+  }
+
+  function animateOut() {
+    overlay.classList.remove('visible');
+    heading.classList.remove('visible');
+    gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power2.in' });
+    gsap.to(heading, { opacity: 0, duration: 0.3 });
+    cardEls.forEach(c => c.classList.remove('active'));
+    currentActive = -1;
+  }
 
   ScrollTrigger.create({
     trigger:    '#facts-section',
@@ -2540,7 +2483,10 @@ function setupFactsSection() {
     scrub:      0.4,
     onEnter() {
       factsActive = true;
-      gsap.to(camT, { z: factsCamZ, duration: 0.8, ease: 'power2.out' });
+      gsap.to(camT, { z: 10.0, duration: 0.8, ease: 'power2.out' });
+      // Snap ring to card 0 before animating in
+      spinTo(0, true);
+      activateCard(0);
       animateIn();
     },
     onLeave() {
@@ -2550,7 +2496,7 @@ function setupFactsSection() {
     },
     onEnterBack() {
       factsActive = true;
-      gsap.to(camT, { z: factsCamZ, duration: 0.5, ease: 'power2.out' });
+      gsap.to(camT, { z: 10.0, duration: 0.5, ease: 'power2.out' });
       animateIn();
     },
     onLeaveBack() {
@@ -2559,8 +2505,7 @@ function setupFactsSection() {
     },
     onUpdate(self) {
       if (!factsActive) return;
-      // Map scroll progress 0→1 across 8 cards
-      const idx = Math.min(7, Math.floor(self.progress * 8));
+      const idx = Math.min(FACTS_NUM - 1, Math.floor(self.progress * FACTS_NUM));
       activateCard(idx);
     },
   });
