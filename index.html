@@ -1488,6 +1488,66 @@ const anatomy = [
 ];
 
 // ============================================================
+//  BACKGROUND ORGANS  (loaded when FBX files are dropped into /organs/)
+// ============================================================
+const organMat = new THREE.MeshStandardMaterial({
+  color:             new THREE.Color(0xcc3a4a),   // fleshy red-pink
+  roughness:         0.75,
+  metalness:         0.00,
+  transparent:       true,
+  opacity:           0.52,                         // semi-transparent so heart stays hero
+  depthWrite:        false,
+  side:              THREE.FrontSide,
+});
+
+const ORGANS = [
+  // ── LEFT LUNG ──────────────────────────────────────────────
+  // File to put in:  heart-website/organs/left_lung.fbx
+  { file: './organs/left_lung.fbx',
+    position: new THREE.Vector3(-1.55, 0.08, -0.35),
+    scale:    0.018,
+    rotY:     Math.PI * 0.05 },
+
+  // ── RIGHT LUNG ─────────────────────────────────────────────
+  // File to put in:  heart-website/organs/right_lung.fbx
+  { file: './organs/right_lung.fbx',
+    position: new THREE.Vector3( 1.55, 0.08, -0.35),
+    scale:    0.018,
+    rotY:     -Math.PI * 0.05 },
+
+  // ── DIAPHRAGM ──────────────────────────────────────────────
+  // File to put in:  heart-website/organs/diaphragm.fbx
+  { file: './organs/diaphragm.fbx',
+    position: new THREE.Vector3( 0.00, -1.55, -0.20),
+    scale:    0.018,
+    rotY:     0 },
+];
+
+const fbxLoader  = new FBXLoader();
+const organGroup = new THREE.Group();
+organGroup.renderOrder = -1;   // always behind heart
+scene.add(organGroup);
+
+ORGANS.forEach(({ file, position, scale, rotY }) => {
+  fbxLoader.load(file, (fbx) => {
+    fbx.traverse(c => {
+      if (c.isMesh) {
+        c.material  = organMat;
+        c.castShadow    = false;
+        c.receiveShadow = false;
+      }
+    });
+    fbx.scale.setScalar(scale);
+    fbx.position.copy(position);
+    fbx.rotation.y = rotY;
+    organGroup.add(fbx);
+  },
+  undefined,
+  () => { /* file not present yet — silently skip */ }
+  );
+});
+
+// ============================================================
 //  HEART MESH
 // ============================================================
 const heartGroup = new THREE.Group();
