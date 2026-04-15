@@ -1516,11 +1516,7 @@ const discMat = new THREE.MeshStandardMaterial({
   color: new THREE.Color(0xb8a878), roughness: 0.70, metalness: 0.0,
   transparent: true, opacity: 0.40,
 });
-const lungMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xc4847a), roughness: 0.85, metalness: 0.0,
-  emissive: new THREE.Color(0x180404), emissiveIntensity: 0.06,
-  transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide,
-});
+// Lung material — loaded from FBX textures below
 const diaphragmMat = new THREE.MeshStandardMaterial({
   color: new THREE.Color(0xaa4030), roughness: 0.80, metalness: 0.0,
   emissive: new THREE.Color(0x180404), emissiveIntensity: 0.05,
@@ -1620,43 +1616,64 @@ const tracheaMat = new THREE.MeshStandardMaterial({
   }
 })();
 
-// ── 3. LEFT LUNG ─────────────────────────────────────────────
-// Debate: center[-1.3,-0.2,-0.25], scale 0.88, opacity 0.78
-// 2 lobes; cardiac notch makes it narrower on right (medial) side.
-// Lobes positioned relative to lung center.
+// ── 3 & 4. LUNGS — real FBX model (Lungs_12-11-2021.fbx) ─────
+// Textures: Respiratoy_Lungs_Dif.jpeg (diffuse), Respiratoy_Lungs_Bump.jpeg (bump)
+// The FBX contains both lungs as one mesh; we clone it to create two side-by-side
+// groups, then animate scale for breathe (inflate/deflate at ~14 breaths/min).
 
-(function buildLeftLung() {
-  const [cx,cy,cz] = [-1.85,-0.20,-0.65], sc = 0.88;
-  const lobes = [
-    [ 0.02, 0.62, 0.00,  0.78*sc, 1.02*sc, 0.60*sc],
-    [ 0.00,-0.52, 0.00,  0.82*sc, 0.82*sc, 0.65*sc],
-  ];
-  lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
-    m.position.set(cx+ox, cy+oy, cz+oz);
-    m.scale.set(sx, sy, sz);
-    organGroup.add(m);
+let lungsGroup = null;          // set once FBX loads — used in render loop
+const BREATHE_PERIOD = 60 / 14; // 14 breaths per min ≈ 4.3 s per cycle
+
+{
+  const tl2 = new THREE.TextureLoader();
+  const lungDiffuse = tl2.load('./organs/Respiratoy_Lungs_Dif.jpeg');
+  const lungBump    = tl2.load('./organs/Respiratoy_Lungs_Bump.jpeg');
+  lungDiffuse.colorSpace = THREE.SRGBColorSpace;
+  lungBump.colorSpace    = THREE.LinearSRGBColorSpace;
+
+  const lungFbxMat = new THREE.MeshStandardMaterial({
+    map:              lungDiffuse,
+    bumpMap:          lungBump,
+    bumpScale:        0.55,
+    roughness:        0.82,
+    metalness:        0.0,
+    transparent:      true,
+    opacity:          0.72,
+    depthWrite:       false,
+    side:             THREE.DoubleSide,
   });
-})();
 
-// ── 4. RIGHT LUNG ────────────────────────────────────────────
-// Debate: center[1.5,0.0,-0.25], scale 0.95, opacity 0.78
-// 3 lobes; right lung wider, Y=0 (liver raises right hemidiaphragm slightly).
+  new FBXLoader().load('./organs/lungs.fbx', (fbx) => {
+    // Normalise — fit to ~2.2 units tall
+    const box  = new THREE.Box3().setFromObject(fbx);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const sc   = 2.2 / Math.max(size.x, size.y, size.z);
+    const ctr  = new THREE.Vector3();
+    box.getCenter(ctr);
 
-(function buildRightLung() {
-  const [cx,cy,cz] = [1.95, 0.00,-0.65], sc = 0.95;
-  const lobes = [
-    [ 0.00, 0.62, 0.00,  0.90*sc, 1.05*sc, 0.62*sc],
-    [ 0.00, 0.00, 0.00,  0.70*sc, 0.50*sc, 0.56*sc],
-    [ 0.00,-0.55, 0.00,  0.90*sc, 0.86*sc, 0.68*sc],
-  ];
-  lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
-    m.position.set(cx+ox, cy+oy, cz+oz);
-    m.scale.set(sx, sy, sz);
-    organGroup.add(m);
-  });
-})();
+    fbx.traverse(c => {
+      if (c.isMesh) {
+        c.material      = lungFbxMat;
+        c.castShadow    = false;
+        c.receiveShadow = false;
+      }
+    });
+    fbx.scale.setScalar(sc);
+    fbx.position.sub(ctr.multiplyScalar(sc)); // centre at origin
+
+    // Place the whole lung assembly: debate consensus position, slightly behind heart
+    fbx.position.x += 0.0;
+    fbx.position.y += -0.15;
+    fbx.position.z += -0.65;
+
+    lungsGroup = fbx;
+    organGroup.add(lungsGroup);
+  },
+  undefined,
+  (err) => { console.warn('Lungs FBX failed to load:', err); }
+  );
+}
 
 // ── 5. DIAPHRAGM ─────────────────────────────────────────────
 // Debate: position[0,-1.9,-0.1], scale 1.3, opacity 0.75
@@ -2518,6 +2535,20 @@ let chromaVelocity = 0;
   camera.position.y = THREE.MathUtils.damp(camera.position.y, camT.y, CAM_LAMBDA, dt);
   camera.position.z = THREE.MathUtils.damp(camera.position.z, camT.z, CAM_LAMBDA, dt);
   camera.lookAt(0, 0, 0);
+
+  // ── Lung breathe animation ──────────────────────────────────
+  // Slow sinusoidal inflate/deflate at 14 breaths/min (~4.3 s cycle)
+  // Inhale: scale up ~8% on X/Z, ~5% on Y (lungs expand laterally more than vertically)
+  // Exhale: return to base — smooth sin wave
+  if (lungsGroup) {
+    const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD; // 0..1
+    // Shape: slow gentle inhale, slightly faster exhale (realistic breathing)
+    const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4); // 0..1, skewed
+    const bx = 1.0 + breatheVal * 0.085;  // lateral expansion
+    const by = 1.0 + breatheVal * 0.045;  // vertical (less)
+    const bz = 1.0 + breatheVal * 0.075;  // front-back
+    lungsGroup.scale.set(bx, by, bz);
+  }
 
   updateParticles(dt);
   updateCrystals();
