@@ -1677,6 +1677,7 @@ const tracheaMat = new THREE.MeshStandardMaterial({
 // Breathe animation: inflate/deflate at 14 breaths/min.
 
 let lungsGroup = null;
+let lungsBaseScale = 1; // set after FBX normalise+upscale, used by breathe anim
 const BREATHE_PERIOD = 60 / 14; // ~4.3 s per cycle
 
 {
@@ -1713,7 +1714,9 @@ const BREATHE_PERIOD = 60 / 14; // ~4.3 s per cycle
     // Far behind heart, scaled up to fill background side-panels
     fbx.position.y += -0.20;
     fbx.position.z += -4.0;   // deep background
-    fbx.scale.multiplyScalar(2.8); // large enough to frame the scene
+    const finalScale = sc * 2.8; // store before breathe anim overwrites it
+    fbx.scale.setScalar(finalScale);
+    lungsBaseScale = finalScale;
 
     lungsGroup = fbx;
     organGroup.add(lungsGroup);
@@ -2514,12 +2517,13 @@ let chromaVelocity = 0;
   // Exhale: return to base — smooth sin wave
   if (lungsGroup) {
     const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD; // 0..1
-    // Shape: slow gentle inhale, slightly faster exhale (realistic breathing)
     const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4); // 0..1, skewed
-    const bx = 1.0 + breatheVal * 0.085;  // lateral expansion
-    const by = 1.0 + breatheVal * 0.045;  // vertical (less)
-    const bz = 1.0 + breatheVal * 0.075;  // front-back
-    lungsGroup.scale.set(bx, by, bz);
+    // Multiply FROM base scale — never stomp it
+    lungsGroup.scale.set(
+      lungsBaseScale * (1.0 + breatheVal * 0.085),  // lateral expansion
+      lungsBaseScale * (1.0 + breatheVal * 0.045),  // vertical (less)
+      lungsBaseScale * (1.0 + breatheVal * 0.075)   // front-back
+    );
   }
 
   updateParticles(dt);
