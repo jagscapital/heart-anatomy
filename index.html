@@ -715,9 +715,11 @@
       inset: 0;
       z-index: 20;
       pointer-events: none;
-      opacity: 0;
+      /* Use visibility NOT opacity — opacity on a 3D-perspective parent
+         creates a stacking context that collapses preserve-3d children */
+      visibility: hidden;
     }
-    #facts-overlay.visible { opacity: 1; }
+    #facts-overlay.visible { visibility: visible; }
 
     /* Perspective stage — centred on the heart */
     #facts-ring-wrap {
@@ -962,44 +964,44 @@
     <div id="facts-ring">
 
   <!-- PRO cards (idx 0-3) -->
-  <div class="fact-card pro" data-idx="0">
+  <div class="fact-card pro">
     <div class="fact-card-tag">Pro</div>
     <h3 class="fact-card-title">Never Sleeps</h3>
     <p class="fact-card-body">Beats ~100,000 times a day, every day, without a single break for your entire life.</p>
   </div>
-  <div class="fact-card pro" data-idx="1">
+  <div class="fact-card pro">
     <div class="fact-card-tag">Pro</div>
     <h3 class="fact-card-title">Self-Powered</h3>
     <p class="fact-card-body">The SA node generates its own electrical signal — no brain required to keep it beating.</p>
   </div>
-  <div class="fact-card pro" data-idx="2">
+  <div class="fact-card pro">
     <div class="fact-card-tag">Pro</div>
     <h3 class="fact-card-title">Adapts Instantly</h3>
     <p class="fact-card-body">Output can jump 5× during exercise in seconds, delivering exactly the oxygen muscles need.</p>
   </div>
-  <div class="fact-card pro" data-idx="3">
+  <div class="fact-card pro">
     <div class="fact-card-tag">Pro</div>
     <h3 class="fact-card-title">2,000 Gallons / Day</h3>
     <p class="fact-card-body">Pumps blood through 60,000 miles of blood vessels — enough to circle Earth twice.</p>
   </div>
 
   <!-- CON cards (idx 4-7) -->
-  <div class="fact-card con" data-idx="4">
+  <div class="fact-card con">
     <div class="fact-card-tag">Con</div>
     <h3 class="fact-card-title">No. 1 Killer</h3>
     <p class="fact-card-body">Heart disease kills more people worldwide than any other cause — one attack every 40 seconds in the US.</p>
   </div>
-  <div class="fact-card con" data-idx="5">
+  <div class="fact-card con">
     <div class="fact-card-tag">Con</div>
     <h3 class="fact-card-title">Can't Regenerate</h3>
     <p class="fact-card-body">Adult heart muscle cells barely divide. Damage from a heart attack is largely permanent.</p>
   </div>
-  <div class="fact-card con" data-idx="6">
+  <div class="fact-card con">
     <div class="fact-card-tag">Con</div>
     <h3 class="fact-card-title">Silent Blockages</h3>
     <p class="fact-card-body">Plaque can build inside arteries for decades with zero symptoms — until the first heart attack.</p>
   </div>
-  <div class="fact-card con" data-idx="7">
+  <div class="fact-card con">
     <div class="fact-card-tag">Con</div>
     <h3 class="fact-card-title">Stress Damage</h3>
     <p class="fact-card-body">Chronic stress floods the body with cortisol, which stiffens arteries and weakens the heart muscle over time.</p>
@@ -2443,7 +2445,7 @@ function setupFactsSection() {
         rotateY: current + delta,
         duration: 0.55,
         ease: 'power2.inOut',
-        overwrite: true,
+        overwrite: 'auto',
       });
     }
   }
@@ -2458,16 +2460,16 @@ function setupFactsSection() {
   }
 
   function animateIn() {
-    // Fade the overlay wrapper — never touch opacity on #facts-ring itself
-    // (opacity on a preserve-3d element collapses 3D in Firefox/Safari)
-    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
+    // Show overlay via visibility (NOT opacity) so the preserve-3d 3D context
+    // on #facts-ring is never collapsed by a stacking context on the parent.
+    overlay.classList.add('visible');
     gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
-    // Slide ring up into view — Y only, no opacity
-    gsap.fromTo(ring, { y: 28 }, { y: 0, duration: 0.55, ease: 'back.out(1.4)', overwrite: true });
+    // Slide ring in from below — Y only, preserve-3d safe
+    gsap.fromTo(ring, { y: 28 }, { y: 0, duration: 0.55, ease: 'back.out(1.4)', overwrite: 'auto' });
   }
 
   function animateOut() {
-    gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power2.in', overwrite: true });
+    overlay.classList.remove('visible');
     gsap.to(heading, { opacity: 0, duration: 0.3, overwrite: true });
     cardEls.forEach(c => c.classList.remove('active'));
     currentActive = -1;
