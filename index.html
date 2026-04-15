@@ -2778,11 +2778,13 @@ let chromaVelocity = 0;
 
   // ── Lung breathe animation ──────────────────────────────────
   // Pure uniform inflate/deflate — whole lung expands like a balloon.
-  // No asymmetric axis scaling so there is zero up/down drift.
+  // X-axis only: left/right lobes expand outward, stem stays locked in place.
   if (lungsGroup) {
     const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD;
     const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4);
-    lungsGroup.scale.setScalar(lungsBaseScale * (1.0 + breatheVal * 0.05));
+    lungsGroup.scale.x = lungsBaseScale * (1.0 + breatheVal * 0.09);
+    lungsGroup.scale.y = lungsBaseScale;
+    lungsGroup.scale.z = lungsBaseScale;
   }
 
   updateParticles(dt);
