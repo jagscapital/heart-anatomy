@@ -709,6 +709,114 @@
     /* HERO subtitle — brighter on deep dark bg */
     .hero-sub { color: rgba(255,255,255,0.48) !important; }
 
+    /* ── FACTS ORBITAL OVERLAY ─────────────────────────────── */
+    #facts-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #facts-overlay.visible {
+      opacity: 1;
+      pointer-events: none;
+    }
+    #facts-lines {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+    }
+    #facts-lines line {
+      stroke: rgba(255,255,255,0.18);
+      stroke-width: 1;
+      transition: stroke 0.3s ease;
+    }
+    #facts-lines line.active {
+      stroke: rgba(255,255,255,0.55);
+      stroke-width: 1.5;
+    }
+    .fact-card {
+      position: absolute;
+      width: 200px;
+      background: rgba(8, 4, 14, 0.72);
+      border: 1px solid rgba(255,255,255,0.10);
+      border-radius: 12px;
+      padding: 14px 16px;
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      will-change: transform, opacity;
+      opacity: 0;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+      pointer-events: auto;
+      cursor: default;
+    }
+    .fact-card.active {
+      border-color: rgba(255,255,255,0.28);
+      box-shadow: 0 0 28px rgba(255,255,255,0.06);
+    }
+    .fact-card-tag {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .fact-card.pro .fact-card-tag { color: #4fc3f7; }
+    .fact-card.con .fact-card-tag { color: #ff6b6b; }
+    .fact-card-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: #fff;
+      margin: 0 0 5px 0;
+      line-height: 1.3;
+    }
+    .fact-card-body {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      color: rgba(255,255,255,0.60);
+      line-height: 1.5;
+      margin: 0;
+    }
+    .fact-card.pro { border-left: 2px solid rgba(79,195,247,0.40); }
+    .fact-card.con { border-right: 2px solid rgba(255,107,107,0.40); }
+
+    /* facts section heading */
+    #facts-heading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, calc(-50% - 200px));
+      z-index: 21;
+      text-align: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    #facts-heading.visible { opacity: 1; }
+    #facts-heading h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(18px, 2.5vw, 28px);
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.80);
+      margin: 0 0 4px 0;
+    }
+    #facts-heading p {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255,255,255,0.32);
+      margin: 0;
+    }
+
   </style>
 </head>
 <body>
@@ -828,12 +936,69 @@
   <!-- GSAP pins this for the full anatomy spiral -->
   <section id="spiral-section"></section>
 
+  <!-- GSAP pins this for orbital facts cards -->
+  <section id="facts-section"></section>
+
   <section id="outro">
     <h2 class="outro-h2"><span class="ow1">Always</span><br/><span class="ow2"><em style="color:var(--red-glow);font-style:normal">Beating.</em></span></h2>
     <p class="outro-body">Your heart started beating about 3 weeks after you were conceived. It has never stopped since — and it won't stop on its own.</p>
     <p class="outro-stat">≈ 3 billion beats in a lifetime</p>
   </section>
 
+</div>
+
+<!-- ── Facts orbital overlay ────────────────────── -->
+<div id="facts-heading">
+  <h2>Heart Facts</h2>
+  <p>Pros &amp; Cons</p>
+</div>
+
+<div id="facts-overlay">
+  <svg id="facts-lines" xmlns="http://www.w3.org/2000/svg"><defs></defs></svg>
+
+  <!-- PRO cards: left arc -->
+  <div class="fact-card pro" data-idx="0">
+    <div class="fact-card-tag">Pro</div>
+    <h3 class="fact-card-title">Never Sleeps</h3>
+    <p class="fact-card-body">Beats ~100,000 times a day, every day, without a single break for your entire life.</p>
+  </div>
+  <div class="fact-card pro" data-idx="1">
+    <div class="fact-card-tag">Pro</div>
+    <h3 class="fact-card-title">Self-Powered</h3>
+    <p class="fact-card-body">The SA node generates its own electrical signal — no brain required to keep it beating.</p>
+  </div>
+  <div class="fact-card pro" data-idx="2">
+    <div class="fact-card-tag">Pro</div>
+    <h3 class="fact-card-title">Adapts Instantly</h3>
+    <p class="fact-card-body">Output can jump 5× during exercise in seconds, delivering exactly the oxygen muscles need.</p>
+  </div>
+  <div class="fact-card pro" data-idx="3">
+    <div class="fact-card-tag">Pro</div>
+    <h3 class="fact-card-title">2,000 Gallons / Day</h3>
+    <p class="fact-card-body">Pumps blood through 60,000 miles of blood vessels — enough to circle Earth twice.</p>
+  </div>
+
+  <!-- CON cards: right arc -->
+  <div class="fact-card con" data-idx="4">
+    <div class="fact-card-tag">Con</div>
+    <h3 class="fact-card-title">No. 1 Killer</h3>
+    <p class="fact-card-body">Heart disease kills more people worldwide than any other cause — one attack every 40 seconds in the US.</p>
+  </div>
+  <div class="fact-card con" data-idx="5">
+    <div class="fact-card-tag">Con</div>
+    <h3 class="fact-card-title">Can't Regenerate</h3>
+    <p class="fact-card-body">Adult heart muscle cells barely divide. Damage from a heart attack is largely permanent.</p>
+  </div>
+  <div class="fact-card con" data-idx="6">
+    <div class="fact-card-tag">Con</div>
+    <h3 class="fact-card-title">Silent Blockages</h3>
+    <p class="fact-card-body">Plaque can build inside arteries for decades with zero symptoms — until the first heart attack.</p>
+  </div>
+  <div class="fact-card con" data-idx="7">
+    <div class="fact-card-tag">Con</div>
+    <h3 class="fact-card-title">Stress Damage</h3>
+    <p class="fact-card-body">Chronic stress floods the body with cortisol, which stiffens arteries and weakens the heart muscle over time.</p>
+  </div>
 </div>
 
 <!-- ── Lenis smooth scroll ──────────────────────── -->
@@ -2202,6 +2367,8 @@ function setupScroll() {
     },
   });
 
+  setupFactsSection();
+
   gsap.set('.outro-h2',   { opacity: 1 });
   gsap.set('.outro-body', { opacity: 0, filter: 'blur(6px)' });
   gsap.set('.outro-stat', { opacity: 0, letterSpacing: '0.6em' });
@@ -2229,6 +2396,173 @@ function setupScroll() {
       gsap.timeline()
         .to(glowLight, { intensity: 2.5, duration: 0.18, ease: 'power2.in' })
         .to(glowLight, { intensity: 1.2, duration: 1.0,  ease: 'power2.out' });
+    },
+  });
+}
+
+// ── FACTS ORBITAL SECTION ─────────────────────────────────────
+const FACTS_SCROLL_PX = window.innerHeight * 10; // 10 screen-heights to scroll through all 8 cards
+
+const FACT_CARDS_DATA = [
+  // PRO: left ellipse arc  (dx negative = left side)
+  { dx: -0.30, dy: -0.30, idx: 0 }, // upper-left
+  { dx: -0.40, dy: -0.10, idx: 1 }, // mid-upper-left
+  { dx: -0.40, dy:  0.10, idx: 2 }, // mid-lower-left
+  { dx: -0.30, dy:  0.30, idx: 3 }, // lower-left
+  // CON: right ellipse arc (dx positive = right side)
+  { dx:  0.30, dy: -0.30, idx: 4 }, // upper-right
+  { dx:  0.40, dy: -0.10, idx: 5 }, // mid-upper-right
+  { dx:  0.40, dy:  0.10, idx: 6 }, // mid-lower-right
+  { dx:  0.30, dy:  0.30, idx: 7 }, // lower-right
+];
+
+function setupFactsSection() {
+  const overlay  = document.getElementById('facts-overlay');
+  const heading  = document.getElementById('facts-heading');
+  const svgEl    = document.getElementById('facts-lines');
+  const cardEls  = Array.from(document.querySelectorAll('.fact-card'));
+
+  let factsActive   = false;
+  let currentActive = -1;
+
+  // Set initial GSAP state (collapsed + invisible)
+  gsap.set(cardEls, { opacity: 0, scale: 0.82, y: 8 });
+
+  // Pre-position cards based on viewport fractions
+  function positionCards() {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = vw * 0.5;
+    const cy = vh * 0.5;
+
+    cardEls.forEach((card, i) => {
+      const d = FACT_CARDS_DATA[i];
+      // Offset in pixels from viewport centre
+      const ox = d.dx * vw;
+      const oy = d.dy * vh;
+      // Place card so its centre is at (cx+ox, cy+oy)
+      const cardW = 200; // px, matches CSS
+      const cardH = card.offsetHeight || 110;
+      card.style.left = (cx + ox - cardW * 0.5) + 'px';
+      card.style.top  = (cy + oy - cardH * 0.5) + 'px';
+    });
+  }
+  positionCards();
+  window.addEventListener('resize', positionCards);
+
+  // Build/update SVG connector lines from viewport centre to each card centre
+  function updateLines(activeIdx) {
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const cx = vw * 0.5;
+    const cy = vh * 0.5;
+
+    // Clear existing lines
+    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+
+    cardEls.forEach((card, i) => {
+      const d = FACT_CARDS_DATA[i];
+      const ox = d.dx * vw;
+      const oy = d.dy * vh;
+      const tx = cx + ox;
+      const ty = cy + oy;
+
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', cx);
+      line.setAttribute('y1', cy);
+      line.setAttribute('x2', tx);
+      line.setAttribute('y2', ty);
+      if (i === activeIdx) line.classList.add('active');
+      svgEl.appendChild(line);
+    });
+  }
+
+  // Entrance animation: stagger cards in with spring
+  function animateIn() {
+    gsap.to(overlay, { opacity: 1, duration: 0.4, ease: 'power2.out' });
+    gsap.to(heading, { opacity: 1, duration: 0.4, ease: 'power2.out' });
+    heading.classList.add('visible');
+    overlay.classList.add('visible');
+
+    cardEls.forEach((card, i) => {
+      gsap.to(card, {
+        opacity: 0.28,
+        scale: 0.97,
+        y: 0,
+        duration: 0.7,
+        delay: i * 0.08,
+        ease: 'back.out(1.6)',
+      });
+    });
+    updateLines(-1);
+  }
+
+  // Exit animation
+  function animateOut() {
+    gsap.to(overlay, { opacity: 0, duration: 0.35, ease: 'power2.in' });
+    gsap.to(heading, { opacity: 0, duration: 0.35, ease: 'power2.in' });
+    heading.classList.remove('visible');
+    overlay.classList.remove('visible');
+    cardEls.forEach((card) => {
+      gsap.to(card, { opacity: 0, scale: 0.82, y: 8, duration: 0.25 });
+      card.classList.remove('active', 'inactive');
+    });
+    currentActive = -1;
+    // Clear SVG lines
+    while (svgEl.firstChild) svgEl.removeChild(svgEl.firstChild);
+  }
+
+  // Activate a specific card
+  function activateCard(idx) {
+    if (idx === currentActive) return;
+    currentActive = idx;
+    cardEls.forEach((card, i) => {
+      card.classList.remove('active', 'inactive');
+      if (i === idx) {
+        card.classList.add('active');
+        gsap.to(card, { opacity: 1, scale: 1.04, y: 0, duration: 0.35, ease: 'power2.out' });
+      } else {
+        card.classList.add('inactive');
+        gsap.to(card, { opacity: 0.25, scale: 0.96, y: 0, duration: 0.35, ease: 'power2.out' });
+      }
+    });
+    updateLines(idx);
+  }
+
+  // Camera pull-back when facts section is active
+  const factsCamZ = 10.0;
+
+  ScrollTrigger.create({
+    trigger:    '#facts-section',
+    start:      'top top',
+    end:        `+=${FACTS_SCROLL_PX}`,
+    pin:        true,
+    pinSpacing: true,
+    scrub:      0.4,
+    onEnter() {
+      factsActive = true;
+      gsap.to(camT, { z: factsCamZ, duration: 0.8, ease: 'power2.out' });
+      animateIn();
+    },
+    onLeave() {
+      factsActive = false;
+      animateOut();
+      camT.z = 7.5; camT.y = 0.0;
+    },
+    onEnterBack() {
+      factsActive = true;
+      gsap.to(camT, { z: factsCamZ, duration: 0.5, ease: 'power2.out' });
+      animateIn();
+    },
+    onLeaveBack() {
+      factsActive = false;
+      animateOut();
+    },
+    onUpdate(self) {
+      if (!factsActive) return;
+      // Map scroll progress 0→1 across 8 cards
+      const idx = Math.min(7, Math.floor(self.progress * 8));
+      activateCard(idx);
     },
   });
 }
