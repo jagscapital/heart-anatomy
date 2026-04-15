@@ -31,13 +31,14 @@
     html { scroll-behavior:auto; }
     body {
       /* Radial depth gradient — centre slightly lighter, edges darker */
-      /* Inside the chest: warm flesh-dark core fading to deep anatomical black */
+      /* Inside the chest cavity — warm biological dark surrounds the heart */
       background:
-        radial-gradient(ellipse 90% 75% at 50% 44%,
-          #1a0608 0%,    /* deep red-black — arterial void at center */
-          #0e0305 38%,   /* dark crimson mid */
-          #050102 72%,   /* near-black with red trace */
-          #010001 100%); /* pure anatomical dark at edges */
+        radial-gradient(ellipse 140% 110% at 50% 46%,
+          #0d0205 0%,    /* near-center: dark crimson */
+          #160408 22%,   /* mid-inner: warm dark flesh */
+          #1a050a 42%,   /* sides: deeper burgundy */
+          #120308 65%,   /* outer: dark muscle-red */
+          #080102 100%); /* edge: near-black */
       color: var(--text);
       font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
       overflow-x: hidden;
@@ -978,9 +979,9 @@ composer.addPass(renderPass);
 // that were previously below the bloom threshold
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.72,  // strength  ×2 — richer specular bloom
-  0.55,  // radius    — softer halo around highlights
-  0.36   // threshold — catches more wet surface sheen
+  0.28,  // strength — subtle specular glow only
+  0.38,  // radius
+  0.52   // threshold — only the brightest specular highlights
 );
 composer.addPass(bloom);
 
@@ -1099,9 +1100,9 @@ pmremGen.dispose();
 // ============================================================
 //  LIGHTING
 // ============================================================
-scene.add(new THREE.AmbientLight(0x1a0008, 0.55)); // warm dark fill
+scene.add(new THREE.AmbientLight(0x1a0008, 0.40));
 
-const keyLight = new THREE.DirectionalLight(0xffaaaa, 2.6);
+const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.6);
 keyLight.position.set(3, 5, 4);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);
@@ -1109,27 +1110,26 @@ keyLight.shadow.camera.near = 0.5;
 keyLight.shadow.camera.far  = 30;
 scene.add(keyLight);
 
-const fillLight = new THREE.DirectionalLight(0x3355cc, 1.0);
+const fillLight = new THREE.DirectionalLight(0x3355cc, 0.7);
 fillLight.position.set(-4, 1, 2);
 fillLight.castShadow = false;
 scene.add(fillLight);
 
-const rimLight = new THREE.DirectionalLight(0xff1133, 3.4);
+const rimLight = new THREE.DirectionalLight(0xff1133, 1.8);
 rimLight.position.set(0, -5, -4);
 rimLight.castShadow = false;
 scene.add(rimLight);
 
-const superiorRim = new THREE.DirectionalLight(0xaaccff, 1.4);
+const superiorRim = new THREE.DirectionalLight(0xaaccff, 0.9);
 superiorRim.position.set(0, 8, 2);
 superiorRim.castShadow = false;
 scene.add(superiorRim);
 
-const glowLight = new THREE.PointLight(0xff2244, 2.2, 5);
+const glowLight = new THREE.PointLight(0xff2244, 1.0, 4.5);
 glowLight.position.set(0, 0.5, 2.5);
 scene.add(glowLight);
 
-// Under-light: warm red upfill from below (like the heart rests on light)
-const underLight = new THREE.PointLight(0xff1122, 1.4, 6);
+const underLight = new THREE.PointLight(0xff1122, 0.7, 5);
 underLight.position.set(0, -3, 1);
 scene.add(underLight);
 
@@ -1517,14 +1517,14 @@ const discMat = new THREE.MeshStandardMaterial({
   transparent: true, opacity: 0.40,
 });
 const lungMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xe8a898), roughness: 0.82, metalness: 0.0,
-  emissive: new THREE.Color(0x2a0808), emissiveIntensity: 0.10,
-  transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
+  color: new THREE.Color(0xc4847a), roughness: 0.85, metalness: 0.0,
+  emissive: new THREE.Color(0x180404), emissiveIntensity: 0.06,
+  transparent: true, opacity: 0.62, depthWrite: false, side: THREE.DoubleSide,
 });
 const diaphragmMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xc4543a), roughness: 0.78, metalness: 0.0,
-  emissive: new THREE.Color(0x280808), emissiveIntensity: 0.08,
-  transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide,
+  color: new THREE.Color(0xaa4030), roughness: 0.80, metalness: 0.0,
+  emissive: new THREE.Color(0x180404), emissiveIntensity: 0.05,
+  transparent: true, opacity: 0.68, depthWrite: false, side: THREE.DoubleSide,
 });
 const tracheaMat = new THREE.MeshStandardMaterial({
   color: new THREE.Color(0xb8c4cc), roughness: 0.50, metalness: 0.0,
@@ -1626,11 +1626,10 @@ const tracheaMat = new THREE.MeshStandardMaterial({
 // Lobes positioned relative to lung center.
 
 (function buildLeftLung() {
-  const [cx,cy,cz] = [-1.30,-0.20,-0.25], sc = 0.88;
+  const [cx,cy,cz] = [-1.85,-0.20,-0.65], sc = 0.88;
   const lobes = [
-    // offset from center + individual lobe scale
-    [ 0.02, 0.62, 0.00,  0.72*sc, 0.97*sc, 0.55*sc],  // upper lobe
-    [ 0.00,-0.52, 0.00,  0.77*sc, 0.77*sc, 0.60*sc],  // lower lobe
+    [ 0.02, 0.62, 0.00,  0.78*sc, 1.02*sc, 0.60*sc],
+    [ 0.00,-0.52, 0.00,  0.82*sc, 0.82*sc, 0.65*sc],
   ];
   lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
     const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
@@ -1645,11 +1644,11 @@ const tracheaMat = new THREE.MeshStandardMaterial({
 // 3 lobes; right lung wider, Y=0 (liver raises right hemidiaphragm slightly).
 
 (function buildRightLung() {
-  const [cx,cy,cz] = [1.50, 0.00,-0.25], sc = 0.95;
+  const [cx,cy,cz] = [1.95, 0.00,-0.65], sc = 0.95;
   const lobes = [
-    [ 0.00, 0.62, 0.00,  0.86*sc, 1.00*sc, 0.61*sc],  // upper lobe
-    [ 0.00, 0.00, 0.00,  0.68*sc, 0.49*sc, 0.55*sc],  // middle lobe
-    [ 0.00,-0.55, 0.00,  0.87*sc, 0.84*sc, 0.67*sc],  // lower lobe
+    [ 0.00, 0.62, 0.00,  0.90*sc, 1.05*sc, 0.62*sc],
+    [ 0.00, 0.00, 0.00,  0.70*sc, 0.50*sc, 0.56*sc],
+    [ 0.00,-0.55, 0.00,  0.90*sc, 0.86*sc, 0.68*sc],
   ];
   lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
     const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
@@ -2371,8 +2370,7 @@ function heartbeatScale(dt) {
   const targetZRock = Math.sin(beatPhase) * 0.04;
   heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
 
-  // Heartbeat glow — warm fill that breathes with each beat
-  glowLight.intensity = 2.2 + beat * 1.4;
+  glowLight.intensity = 1.0 + beat * 0.55;
 
   // MERIDIAN R8: CA fires with heartbeat systole (prefers-reduced-motion gated)
   if (!REDUCED_MOTION && lub > 0.6) {
