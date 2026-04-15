@@ -1835,31 +1835,30 @@ const BREATHE_PERIOD = 60 / 14;
   lungBump.colorSpace    = THREE.LinearSRGBColorSpace;
 
   const lungFbxMat = new THREE.MeshStandardMaterial({
-    map:              lungDiffuse,
-    bumpMap:          lungBump,
-    bumpScale:        0.55,   // stronger bump for visible surface detail
-    roughness:        0.75,
-    metalness:        0.0,
-    envMapIntensity:  1.2,    // catch some IBL for warmth
-    transparent:      true,
-    opacity:          0.68,   // solid enough to see texture, heart still shows through
-    depthWrite:       false,
-    side:             THREE.DoubleSide,
+    map:          lungDiffuse,
+    bumpMap:      lungBump,
+    bumpScale:   0.55,
+    roughness:   0.75,
+    metalness:   0.0,
+    transparent: true,
+    opacity:     0.48,  // semi-transparent background — heart shows through clearly
+    depthWrite:  false,
+    side:        THREE.DoubleSide,
   });
 
   new FBXLoader().load('./organs/lungs.fbx', function(fbx) {
     const box = new THREE.Box3().setFromObject(fbx);
     const sz  = new THREE.Vector3(); box.getSize(sz);
-    // Scale to 14 units tall — fills the ribcage barrel interior
-    const finalScale = 14.0 / Math.max(sz.x, sz.y, sz.z);
+    // Scale to 30 units — camera at z=7.5 is INSIDE the lung tissue, same
+    // principle as the ribcage barrel. The mediastinal gap keeps the heart visible.
+    const finalScale = 30.0 / Math.max(sz.x, sz.y, sz.z);
     const ctr = new THREE.Vector3(); box.getCenter(ctr);
 
     fbx.traverse(function(c) {
       if (c.isMesh) { c.material = lungFbxMat; c.castShadow = false; }
     });
     fbx.scale.setScalar(finalScale);
-    fbx.position.sub(ctr.multiplyScalar(finalScale)); // center at world origin
-    fbx.position.z += -0.8; // just behind heart so heart floats in the mediastinal gap
+    fbx.position.sub(ctr.multiplyScalar(finalScale)); // centre at world origin
     lungsBaseScale = finalScale;
 
     lungsGroup = fbx;
@@ -2836,7 +2835,7 @@ let chromaVelocity = 0;
   if (lungsGroup) {
     const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD;
     const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4);
-    lungsGroup.scale.setScalar(lungsBaseScale * (1.0 + breatheVal * 0.10));
+    lungsGroup.scale.setScalar(lungsBaseScale * (1.0 + breatheVal * 0.05));
   }
 
   updateParticles(dt);
