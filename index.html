@@ -1653,8 +1653,11 @@ const tracheaMat = new THREE.MeshStandardMaterial({
   organGroup.add(trGroup);
 })();
 
-// 5. LUNGS: massive FBX centered in chest, 8 units tall.
-// Semi-transparent so heart shows through. Breathe at 14/min.
+// 5. LUNGS: massive FBX, scaled to fill the ribcage interior.
+// Normalized to 14 units tall — same scale as the surrounding barrel.
+// Centered at world origin, z=-0.8 (just behind heart).
+// The lung model's natural mediastinal notch frames the heart.
+// Breathe: uniform inflate/deflate (pure scale, no drift).
 let lungsGroup = null;
 let lungsBaseScale = 1;
 const BREATHE_PERIOD = 60 / 14;
@@ -1667,30 +1670,31 @@ const BREATHE_PERIOD = 60 / 14;
   lungBump.colorSpace    = THREE.LinearSRGBColorSpace;
 
   const lungFbxMat = new THREE.MeshStandardMaterial({
-    map:         lungDiffuse,
-    bumpMap:     lungBump,
-    bumpScale:   0.35,
-    roughness:   0.82,
-    metalness:   0.0,
-    transparent: true,
-    opacity:     0.52,
-    depthWrite:  false,
-    side:        THREE.DoubleSide,
+    map:              lungDiffuse,
+    bumpMap:          lungBump,
+    bumpScale:        0.55,   // stronger bump for visible surface detail
+    roughness:        0.75,
+    metalness:        0.0,
+    envMapIntensity:  1.2,    // catch some IBL for warmth
+    transparent:      true,
+    opacity:          0.68,   // solid enough to see texture, heart still shows through
+    depthWrite:       false,
+    side:             THREE.DoubleSide,
   });
 
   new FBXLoader().load('./organs/lungs.fbx', function(fbx) {
     const box = new THREE.Box3().setFromObject(fbx);
     const sz  = new THREE.Vector3(); box.getSize(sz);
-    const finalScale = 8.0 / Math.max(sz.x, sz.y, sz.z);
+    // Scale to 14 units tall — fills the ribcage barrel interior
+    const finalScale = 14.0 / Math.max(sz.x, sz.y, sz.z);
     const ctr = new THREE.Vector3(); box.getCenter(ctr);
 
     fbx.traverse(function(c) {
       if (c.isMesh) { c.material = lungFbxMat; c.castShadow = false; }
     });
     fbx.scale.setScalar(finalScale);
-    fbx.position.sub(ctr.multiplyScalar(finalScale));
-    fbx.position.y += 0.5;
-    fbx.position.z += -2.5;
+    fbx.position.sub(ctr.multiplyScalar(finalScale)); // center at world origin
+    fbx.position.z += -0.8; // just behind heart so heart floats in the mediastinal gap
     lungsBaseScale = finalScale;
 
     lungsGroup = fbx;
@@ -2493,18 +2497,12 @@ let chromaVelocity = 0;
   camera.lookAt(0, 0, 0);
 
   // ── Lung breathe animation ──────────────────────────────────
-  // Slow sinusoidal inflate/deflate at 14 breaths/min (~4.3 s cycle)
-  // Inhale: scale up ~8% on X/Z, ~5% on Y (lungs expand laterally more than vertically)
-  // Exhale: return to base — smooth sin wave
+  // Pure uniform inflate/deflate — whole lung expands like a balloon.
+  // No asymmetric axis scaling so there is zero up/down drift.
   if (lungsGroup) {
-    const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD; // 0..1
-    const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4); // 0..1, skewed
-    // Multiply FROM base scale — never stomp it
-    lungsGroup.scale.set(
-      lungsBaseScale * (1.0 + breatheVal * 0.085),  // lateral expansion
-      lungsBaseScale * (1.0 + breatheVal * 0.045),  // vertical (less)
-      lungsBaseScale * (1.0 + breatheVal * 0.075)   // front-back
-    );
+    const breathePhase = (elapsed % BREATHE_PERIOD) / BREATHE_PERIOD;
+    const breatheVal = Math.pow(Math.sin(breathePhase * Math.PI), 1.4);
+    lungsGroup.scale.setScalar(lungsBaseScale * (1.0 + breatheVal * 0.10));
   }
 
   updateParticles(dt);
