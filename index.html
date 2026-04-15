@@ -1490,34 +1490,78 @@ const anatomy = [
 // ============================================================
 //  BACKGROUND ORGANS  (loaded when FBX files are dropped into /organs/)
 // ============================================================
+
+// Ribcage — bone-white, fully opaque, wraps around everything
+const ribcageMat = new THREE.MeshStandardMaterial({
+  color:     new THREE.Color(0xf0e8d8),  // bone white
+  roughness: 0.65,
+  metalness: 0.00,
+  transparent: true,
+  opacity:   0.72,
+  side:      THREE.FrontSide,
+});
+
+// Pericardium — thin translucent sac around the heart
+const pericardMat = new THREE.MeshPhysicalMaterial({
+  color:        new THREE.Color(0xffcccc),
+  roughness:    0.10,
+  metalness:    0.00,
+  transmission: 0.78,   // glassy/wet membrane
+  ior:          1.38,
+  transparent:  true,
+  opacity:      0.28,
+  side:         THREE.DoubleSide,
+  depthWrite:   false,
+});
+
+// Soft tissue — lungs + diaphragm
 const organMat = new THREE.MeshStandardMaterial({
-  color:             new THREE.Color(0xcc3a4a),   // fleshy red-pink
-  roughness:         0.75,
-  metalness:         0.00,
-  transparent:       true,
-  opacity:           0.52,                         // semi-transparent so heart stays hero
-  depthWrite:        false,
-  side:              THREE.FrontSide,
+  color:       new THREE.Color(0xcc3a4a),  // fleshy red-pink
+  roughness:   0.75,
+  metalness:   0.00,
+  transparent: true,
+  opacity:     0.52,
+  depthWrite:  false,
+  side:        THREE.FrontSide,
 });
 
 const ORGANS = [
+  // ── RIBCAGE ────────────────────────────────────────────────
+  // heart-website/organs/ribcage.fbx
+  { file: './organs/ribcage.fbx',
+    mat:      ribcageMat,
+    position: new THREE.Vector3( 0.00,  0.10,  0.00),
+    scale:    0.018,
+    rotY:     0 },
+
+  // ── PERICARDIUM ────────────────────────────────────────────
+  // heart-website/organs/pericardium.fbx
+  { file: './organs/pericardium.fbx',
+    mat:      pericardMat,
+    position: new THREE.Vector3( 0.00,  0.00,  0.00),
+    scale:    0.018,
+    rotY:     0 },
+
   // ── LEFT LUNG ──────────────────────────────────────────────
-  // File to put in:  heart-website/organs/left_lung.fbx
+  // heart-website/organs/left_lung.fbx
   { file: './organs/left_lung.fbx',
-    position: new THREE.Vector3(-1.55, 0.08, -0.35),
+    mat:      organMat,
+    position: new THREE.Vector3(-1.55,  0.08, -0.35),
     scale:    0.018,
     rotY:     Math.PI * 0.05 },
 
   // ── RIGHT LUNG ─────────────────────────────────────────────
-  // File to put in:  heart-website/organs/right_lung.fbx
+  // heart-website/organs/right_lung.fbx
   { file: './organs/right_lung.fbx',
-    position: new THREE.Vector3( 1.55, 0.08, -0.35),
+    mat:      organMat,
+    position: new THREE.Vector3( 1.55,  0.08, -0.35),
     scale:    0.018,
-    rotY:     -Math.PI * 0.05 },
+    rotY:    -Math.PI * 0.05 },
 
   // ── DIAPHRAGM ──────────────────────────────────────────────
-  // File to put in:  heart-website/organs/diaphragm.fbx
+  // heart-website/organs/diaphragm.fbx
   { file: './organs/diaphragm.fbx',
+    mat:      organMat,
     position: new THREE.Vector3( 0.00, -1.55, -0.20),
     scale:    0.018,
     rotY:     0 },
@@ -1528,11 +1572,11 @@ const organGroup = new THREE.Group();
 organGroup.renderOrder = -1;   // always behind heart
 scene.add(organGroup);
 
-ORGANS.forEach(({ file, position, scale, rotY }) => {
+ORGANS.forEach(({ file, mat, position, scale, rotY }) => {
   fbxLoader.load(file, (fbx) => {
     fbx.traverse(c => {
       if (c.isMesh) {
-        c.material  = organMat;
+        c.material      = mat;
         c.castShadow    = false;
         c.receiveShadow = false;
       }
