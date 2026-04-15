@@ -31,11 +31,13 @@
     html { scroll-behavior:auto; }
     body {
       /* Radial depth gradient — centre slightly lighter, edges darker */
+      /* Inside the chest: warm flesh-dark core fading to deep anatomical black */
       background:
-        radial-gradient(ellipse 110% 90% at 50% 42%,
-          #100416 0%,
-          #070210 45%,
-          #030108 100%);
+        radial-gradient(ellipse 90% 75% at 50% 44%,
+          #1a0608 0%,    /* deep red-black — arterial void at center */
+          #0e0305 38%,   /* dark crimson mid */
+          #050102 72%,   /* near-black with red trace */
+          #010001 100%); /* pure anatomical dark at edges */
       color: var(--text);
       font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
       overflow-x: hidden;
@@ -1493,114 +1495,256 @@ const anatomy = [
 ];
 
 // ============================================================
-//  BACKGROUND ORGANS  (loaded when FBX files are dropped into /organs/)
+//  CHEST CAVITY — PROCEDURAL ANATOMY BACKGROUND
+//  20-bot classroom debate consensus (20 rounds, 3.4 hrs simulated)
+//  Netter Atlas color conventions. Heart at origin, camera z≈7.5.
 // ============================================================
-
-// Ribcage — bone-white, fully opaque, wraps around everything
-const ribcageMat = new THREE.MeshStandardMaterial({
-  color:     new THREE.Color(0xf0e8d8),  // bone white
-  roughness: 0.65,
-  metalness: 0.00,
-  transparent: true,
-  opacity:   0.72,
-  side:      THREE.FrontSide,
-});
-
-// Pericardium — thin translucent sac around the heart
-const pericardMat = new THREE.MeshPhysicalMaterial({
-  color:        new THREE.Color(0xffcccc),
-  roughness:    0.10,
-  metalness:    0.00,
-  transmission: 0.78,   // glassy/wet membrane
-  ior:          1.38,
-  transparent:  true,
-  opacity:      0.28,
-  side:         THREE.DoubleSide,
-  depthWrite:   false,
-});
-
-// Soft tissue — lungs + diaphragm
-const organMat = new THREE.MeshStandardMaterial({
-  color:       new THREE.Color(0xcc3a4a),  // fleshy red-pink
-  roughness:   0.75,
-  metalness:   0.00,
-  transparent: true,
-  opacity:     0.52,
-  depthWrite:  false,
-  side:        THREE.FrontSide,
-});
-
-const ORGANS = [
-  // ── RIBCAGE ────────────────────────────────────────────────
-  // heart-website/organs/ribcage.fbx
-  { file: './organs/ribcage.fbx',
-    mat:      ribcageMat,
-    position: new THREE.Vector3( 0.00,  0.10,  0.00),
-    scale:    0.018,
-    rotY:     0 },
-
-  // ── PERICARDIUM ────────────────────────────────────────────
-  // heart-website/organs/pericardium.fbx
-  { file: './organs/pericardium.fbx',
-    mat:      pericardMat,
-    position: new THREE.Vector3( 0.00,  0.00,  0.00),
-    scale:    0.018,
-    rotY:     0 },
-
-  // ── LEFT LUNG ──────────────────────────────────────────────
-  // heart-website/organs/left_lung.fbx
-  { file: './organs/left_lung.fbx',
-    mat:      organMat,
-    position: new THREE.Vector3(-1.55,  0.08, -0.35),
-    scale:    0.018,
-    rotY:     Math.PI * 0.05 },
-
-  // ── RIGHT LUNG ─────────────────────────────────────────────
-  // heart-website/organs/right_lung.fbx
-  { file: './organs/right_lung.fbx',
-    mat:      organMat,
-    position: new THREE.Vector3( 1.55,  0.08, -0.35),
-    scale:    0.018,
-    rotY:    -Math.PI * 0.05 },
-
-  // ── DIAPHRAGM ──────────────────────────────────────────────
-  // heart-website/organs/diaphragm.fbx
-  { file: './organs/diaphragm.fbx',
-    mat:      organMat,
-    position: new THREE.Vector3( 0.00, -1.55, -0.20),
-    scale:    0.018,
-    rotY:     0 },
-];
-
-const fbxLoader  = new FBXLoader();
 const organGroup = new THREE.Group();
-organGroup.renderOrder = -1;   // always behind heart
+organGroup.renderOrder = -1;
 scene.add(organGroup);
 
-ORGANS.forEach(({ file, mat, position, scale, rotY }) => {
-  fbxLoader.load(file, (fbx) => {
-    fbx.traverse(c => {
-      if (c.isMesh) {
-        c.material      = mat;
-        c.castShadow    = false;
-        c.receiveShadow = false;
-      }
-    });
-    fbx.scale.setScalar(scale);
-    fbx.position.copy(position);
-    fbx.rotation.y = rotY;
-    organGroup.add(fbx);
-  },
-  undefined,
-  () => { /* file not present yet — silently skip */ }
-  );
+// ── MATERIALS — Netter Atlas palette ────────────────────────
+const ribMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xf0ead6), roughness: 0.60, metalness: 0.0,
+  transparent: true, opacity: 0.50, side: THREE.FrontSide,
 });
+const spineMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xf5f0e0), roughness: 0.58, metalness: 0.0,
+  transparent: true, opacity: 0.45, side: THREE.FrontSide,
+});
+const discMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xb8a878), roughness: 0.70, metalness: 0.0,
+  transparent: true, opacity: 0.40,
+});
+const lungMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xe8a898), roughness: 0.82, metalness: 0.0,
+  emissive: new THREE.Color(0x2a0808), emissiveIntensity: 0.10,
+  transparent: true, opacity: 0.78, depthWrite: false, side: THREE.DoubleSide,
+});
+const diaphragmMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xc4543a), roughness: 0.78, metalness: 0.0,
+  emissive: new THREE.Color(0x280808), emissiveIntensity: 0.08,
+  transparent: true, opacity: 0.75, depthWrite: false, side: THREE.DoubleSide,
+});
+const tracheaMat = new THREE.MeshStandardMaterial({
+  color: new THREE.Color(0xb8c4cc), roughness: 0.50, metalness: 0.0,
+  transparent: true, opacity: 0.90, side: THREE.FrontSide,
+});
+
+// ── 1. RIBCAGE ───────────────────────────────────────────────
+// Debate: position[0,0.15,0], scale 1.12, opacity 0.50
+// 8 rib pairs + sternum. Full cage with C-arcs.
+// Scale 1.12 applied to rib X extents.
+
+(function buildRibcage() {
+  const K = 1.12; // debate scale factor
+  // [yTop, yFront, floating] — +0.15 applied per debate position Y
+  const ribDefs = [
+    [1.23, 1.07, false],
+    [0.97, 0.79, false],
+    [0.71, 0.51, false],
+    [0.45, 0.23, false],
+    [0.19,-0.05, false],
+    [-0.07,-0.31, false],
+    [-0.31,-0.50, true ],
+    [-0.51,-0.67, true ],
+  ];
+  ribDefs.forEach(([yT, yF, floating]) => {
+    [-1, 1].forEach(s => {
+      const pts = floating ? [
+        new THREE.Vector3(s*0.36,  yT,        -1.62),
+        new THREE.Vector3(s*K*1.30, yT-0.03,  -1.15),
+        new THREE.Vector3(s*K*1.85, yT-0.07,  -0.20),
+        new THREE.Vector3(s*K*1.45, yF,         0.42),
+      ] : [
+        new THREE.Vector3(s*0.36,  yT,        -1.62),
+        new THREE.Vector3(s*K*1.42, yT-0.02,  -1.18),
+        new THREE.Vector3(s*K*2.10, yT-0.06,  -0.18),
+        new THREE.Vector3(s*K*1.52, yF-0.04,   0.70),
+        new THREE.Vector3(s*0.16,  yF,          0.94),
+      ];
+      const rib = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.048, 7, false),
+        ribMat
+      );
+      organGroup.add(rib);
+    });
+  });
+  // Sternum body
+  const sPts = [
+    new THREE.Vector3(0, 1.25, 0.94),
+    new THREE.Vector3(0, 0.55, 0.96),
+    new THREE.Vector3(0,-0.10, 0.97),
+    new THREE.Vector3(0,-0.35, 0.96),
+  ];
+  organGroup.add(new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sPts), 16, 0.10, 8, false), ribMat
+  ));
+  // Manubrium
+  const manu = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.30, 0.14), ribMat);
+  manu.position.set(0, 1.40, 0.94);
+  organGroup.add(manu);
+})();
+
+// ── 2. THORACIC SPINE ────────────────────────────────────────
+// Debate: position[0,0,-1.8], scale 0.70, opacity 0.45
+// 12 vertebrae with bodies, processes, and discs.
+
+(function buildSpine() {
+  const Z = -1.80, N = 12, yTop = 1.40, step = 0.245, sc = 0.70;
+  for (let i = 0; i < N; i++) {
+    const y = yTop - i * step;
+    const body = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24*sc, 0.24*sc, 0.17*sc, 9), spineMat);
+    body.position.set(0, y, Z);
+    organGroup.add(body);
+
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.09*sc, 0.14*sc, 0.32*sc), spineMat);
+    sp.position.set(0, y, Z - 0.30*sc);
+    organGroup.add(sp);
+
+    [-1,1].forEach(s => {
+      const tp = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.045*sc, 0.045*sc, 0.36*sc, 6), spineMat);
+      tp.rotation.z = Math.PI * 0.5;
+      tp.position.set(s * 0.36*sc, y, Z - 0.05*sc);
+      organGroup.add(tp);
+    });
+
+    if (i < N-1) {
+      const disc = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.22*sc, 0.22*sc, 0.07*sc, 9), discMat);
+      disc.position.set(0, y - 0.12*sc, Z);
+      organGroup.add(disc);
+    }
+  }
+})();
+
+// ── 3. LEFT LUNG ─────────────────────────────────────────────
+// Debate: center[-1.3,-0.2,-0.25], scale 0.88, opacity 0.78
+// 2 lobes; cardiac notch makes it narrower on right (medial) side.
+// Lobes positioned relative to lung center.
+
+(function buildLeftLung() {
+  const [cx,cy,cz] = [-1.30,-0.20,-0.25], sc = 0.88;
+  const lobes = [
+    // offset from center + individual lobe scale
+    [ 0.02, 0.62, 0.00,  0.72*sc, 0.97*sc, 0.55*sc],  // upper lobe
+    [ 0.00,-0.52, 0.00,  0.77*sc, 0.77*sc, 0.60*sc],  // lower lobe
+  ];
+  lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
+    m.position.set(cx+ox, cy+oy, cz+oz);
+    m.scale.set(sx, sy, sz);
+    organGroup.add(m);
+  });
+})();
+
+// ── 4. RIGHT LUNG ────────────────────────────────────────────
+// Debate: center[1.5,0.0,-0.25], scale 0.95, opacity 0.78
+// 3 lobes; right lung wider, Y=0 (liver raises right hemidiaphragm slightly).
+
+(function buildRightLung() {
+  const [cx,cy,cz] = [1.50, 0.00,-0.25], sc = 0.95;
+  const lobes = [
+    [ 0.00, 0.62, 0.00,  0.86*sc, 1.00*sc, 0.61*sc],  // upper lobe
+    [ 0.00, 0.00, 0.00,  0.68*sc, 0.49*sc, 0.55*sc],  // middle lobe
+    [ 0.00,-0.55, 0.00,  0.87*sc, 0.84*sc, 0.67*sc],  // lower lobe
+  ];
+  lobes.forEach(([ox,oy,oz,sx,sy,sz]) => {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16), lungMat);
+    m.position.set(cx+ox, cy+oy, cz+oz);
+    m.scale.set(sx, sy, sz);
+    organGroup.add(m);
+  });
+})();
+
+// ── 5. DIAPHRAGM ─────────────────────────────────────────────
+// Debate: position[0,-1.9,-0.1], scale 1.3, opacity 0.75
+// Domed PlaneGeometry — dome apex rises 0.50 units above anchor.
+// Right dome subtly higher (+0.12) than left (liver effect).
+
+(function buildDiaphragm() {
+  const W = 4.5, D = 3.7, SEG = 44;
+  const geo = new THREE.PlaneGeometry(W, D, SEG, SEG);
+  geo.rotateX(-Math.PI * 0.5);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const rx = x/(W*0.5), rz = z/(D*0.5);
+    const r2 = rx*rx + rz*rz;
+    const dome = 0.50 * Math.exp(-r2 * 1.15);
+    // Right side (x>0) is 0.12 higher (liver pushes right dome up)
+    const asymm = x > 0 ? 0.08 * Math.exp(-r2 * 2.0) : 0;
+    pos.setY(i, dome + asymm);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  const mesh = new THREE.Mesh(geo, diaphragmMat);
+  mesh.position.set(0, -1.90, -0.10);
+  mesh.scale.set(1.30, 1.0, 1.30);
+  organGroup.add(mesh);
+})();
+
+// ── 6. TRACHEA + MAIN BRONCHI ────────────────────────────────
+// Debate: position[0.05,1.85,-0.1], XZ radius 0.15, Y-length 1.8
+// Carina at Y=0.95, top at Y=2.75. 11 C-cartilage rings visible.
+// Right bronchus shorter+steeper than left (anatomically accurate).
+
+(function buildTrachea() {
+  // Main trachea: radius 0.15, height 1.80, center at Y=1.85
+  const trGeo = new THREE.CylinderGeometry(0.13, 0.15, 1.80, 12);
+  const tr    = new THREE.Mesh(trGeo, tracheaMat);
+  tr.position.set(0.05, 1.85, -0.10);
+  organGroup.add(tr);
+
+  // C-ring cartilage (11 rings, open posteriorly — face camera)
+  for (let i = 0; i < 11; i++) {
+    const rng = new THREE.Mesh(
+      new THREE.TorusGeometry(0.15, 0.022, 6, 16, Math.PI * 1.55),
+      tracheaMat
+    );
+    rng.position.set(0.05, 0.96 + i * 0.155, -0.10);
+    rng.rotation.y = Math.PI * 0.5;
+    organGroup.add(rng);
+  }
+
+  // Left main bronchus: from carina (Y=0.95) curving left toward lung hilum
+  const lbPts = [
+    new THREE.Vector3(0.05, 0.95, -0.10),
+    new THREE.Vector3(-0.25, 0.82, -0.22),
+    new THREE.Vector3(-0.72, 0.68, -0.35),
+    new THREE.Vector3(-1.05, 0.58, -0.42),
+  ];
+  organGroup.add(new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(lbPts), 14, 0.080, 8, false),
+    tracheaMat
+  ));
+
+  // Right main bronchus: shorter, steeper angle (anatomically correct)
+  const rbPts = [
+    new THREE.Vector3(0.05, 0.95, -0.10),
+    new THREE.Vector3(0.35, 0.84, -0.20),
+    new THREE.Vector3(0.88, 0.74, -0.30),
+    new THREE.Vector3(1.18, 0.68, -0.36),
+  ];
+  organGroup.add(new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rbPts), 14, 0.085, 8, false),
+    tracheaMat
+  ));
+})();
 
 // ============================================================
 //  HEART MESH
 // ============================================================
+// Debate consensus: heartScale 0.76 — 1.596 units tall, ~30% of chest height
+const HEART_BASE_SCALE = 0.76;
+
 const heartGroup = new THREE.Group();
 heartGroup.rotation.y = Math.PI / 12;
+// Debate apex tilt: rotZ +0.05 (apex points left), rotX -0.04 (anterior face forward)
+heartGroup.rotation.z =  0.05;
+heartGroup.rotation.x = -0.04;
 scene.add(heartGroup);
 let heartReady     = false;
 let iglooAnimating = true; // blocks heartbeatScale from fighting scale tween
@@ -1779,7 +1923,7 @@ new FBXLoader().load(
       heartGroup.visible = true;
     }, 1.8);
     tl.to(heartGroup.scale, {
-      x: 1, y: 1, z: 1,
+      x: HEART_BASE_SCALE, y: HEART_BASE_SCALE, z: HEART_BASE_SCALE,
       duration: 0.9,
       ease: 'back.out(1.4)',
     }, 1.8);
@@ -1793,7 +1937,7 @@ new FBXLoader().load(
       scene.remove(iglooGroup);
     }, 3.0);
 
-    gsap.to(camT, { z: 6, duration: 2.8, ease: 'power2.out', delay: 0.4 });
+    gsap.to(camT, { z: 7.5, duration: 2.8, ease: 'power2.out', delay: 0.4 });
 
     setTimeout(() => {
       document.getElementById('loading-screen').classList.add('out');
@@ -1868,7 +2012,7 @@ function updateLabelPositions() {
     const el = els[a.id];
     if (!el.active) return;
 
-    const wp  = a.worldOffset.clone().applyQuaternion(heartGroup.quaternion);
+    const wp  = a.worldOffset.clone().multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
 
     // Back-face cull: hide label when anatomy point faces away from camera
     const toCamera = camera.position.clone().sub(heartGroup.position).normalize();
@@ -2035,7 +2179,7 @@ function setupScroll() {
     onUpdate(self) {
       if (!inSpiral) {
         camT.y = THREE.MathUtils.lerp(0.0, -0.06, self.progress);
-        camT.z = THREE.MathUtils.lerp(6.0,  5.4,  self.progress);
+        camT.z = THREE.MathUtils.lerp(7.5,  6.8,  self.progress);
       }
     },
   });
@@ -2069,13 +2213,13 @@ function setupScroll() {
       fo.classList.add('active');
       setTimeout(() => fo.classList.remove('active'), 500);
       gsap.timeline()
-        .to(camT, { z: 3.2, duration: 0.35, ease: 'power3.in' })
-        .to(camT, { z: 5.6, duration: 0.6,  ease: 'power3.out' });
+        .to(camT, { z: 4.5, duration: 0.35, ease: 'power3.in' })
+        .to(camT, { z: 7.2, duration: 0.6,  ease: 'power3.out' });
     },
     onLeave() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
-      camT.z = 8.0; camT.y = 0.4;
-      setTimeout(() => { if (!inSpiral) { camT.z = 6.0; camT.y = 0.0; } }, 800);
+      camT.z = 9.5; camT.y = 0.4;
+      setTimeout(() => { if (!inSpiral) { camT.z = 7.5; camT.y = 0.0; } }, 800);
     },
     onLeaveBack() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
@@ -2217,9 +2361,9 @@ function heartbeatScale(dt) {
 
   // BOT-01: asymmetric cardiac squeeze
   // LV systole: radial axes thicken, long axis shortens, Z > X (apex twist left)
-  const sx = 1.0 + beat * 1.02;
-  const sy = 1.0 - beat * 0.80;
-  const sz = 1.0 + beat * 1.18;
+  const sx = HEART_BASE_SCALE * (1.0 + beat * 1.02);
+  const sy = HEART_BASE_SCALE * (1.0 - beat * 0.80);
+  const sz = HEART_BASE_SCALE * (1.0 + beat * 1.18);
   heartGroup.scale.set(sx, sy, sz);
 
   // BOT-01: apex rocking on Z, synchronized with beat cycle
@@ -2338,8 +2482,8 @@ let chromaVelocity = 0;
   if (activeAnatomyId && heartReady) {
     const aData = anatomy.find(a => a.id === activeAnatomyId);
     if (aData) {
-      // Flash PointLight at anatomy surface position (world space)
-      const wp = aData.worldOffset.clone().applyQuaternion(heartGroup.quaternion);
+      // Flash PointLight at anatomy surface position (world space, scaled)
+      const wp = aData.worldOffset.clone().multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
       wp.add(heartGroup.position);
       flashLight.position.copy(wp);
 
