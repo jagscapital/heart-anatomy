@@ -1258,7 +1258,7 @@ scene.background = null; // transparent — CSS gradient shows through
 // No fog — it was killing the particles entirely
 
 const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
-camera.position.set(0, 0, 14);
+camera.position.set(0, 0, 7.5); // start INSIDE the ribcage barrel — no bright-rib trance on load
 
 renderPass.scene  = scene;
 renderPass.camera = camera;
@@ -2557,7 +2557,7 @@ function setupHeroEntrance() {
 // ============================================================
 //  CAMERA  (THREE.MathUtils.damp — frame-rate independent)
 // ============================================================
-const camT = { x:0, y:0, z:14 };
+const camT = { x:0, y:0, z:7.5 };
 const CAM_LAMBDA = 6.0;
 
 function spiralCamera(p) {
