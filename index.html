@@ -976,9 +976,9 @@ composer.addPass(renderPass);
 // that were previously below the bloom threshold
 const bloom = new UnrealBloomPass(
   new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.35,  // strength
-  0.32,  // radius (slight increase for softer biological glow)
-  0.48   // threshold: was 0.55, lowered to catch wet surface sheen
+  0.72,  // strength  ×2 — richer specular bloom
+  0.55,  // radius    — softer halo around highlights
+  0.36   // threshold — catches more wet surface sheen
 );
 composer.addPass(bloom);
 
@@ -1097,9 +1097,9 @@ pmremGen.dispose();
 // ============================================================
 //  LIGHTING
 // ============================================================
-scene.add(new THREE.AmbientLight(0x1a0008, 0.4)); // BOT-07 fix: was 3 — now 0.4, warm dark red
+scene.add(new THREE.AmbientLight(0x1a0008, 0.55)); // warm dark fill
 
-const keyLight = new THREE.DirectionalLight(0xffaaaa, 1.8);
+const keyLight = new THREE.DirectionalLight(0xffaaaa, 2.6);
 keyLight.position.set(3, 5, 4);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048, 2048);
@@ -1112,7 +1112,7 @@ fillLight.position.set(-4, 1, 2);
 fillLight.castShadow = false;
 scene.add(fillLight);
 
-const rimLight = new THREE.DirectionalLight(0xff1133, 2.0);
+const rimLight = new THREE.DirectionalLight(0xff1133, 3.4);
 rimLight.position.set(0, -5, -4);
 rimLight.castShadow = false;
 scene.add(rimLight);
@@ -1122,9 +1122,14 @@ superiorRim.position.set(0, 8, 2);
 superiorRim.castShadow = false;
 scene.add(superiorRim);
 
-const glowLight = new THREE.PointLight(0xff2244, 1.2, 4);
+const glowLight = new THREE.PointLight(0xff2244, 2.2, 5);
 glowLight.position.set(0, 0.5, 2.5);
 scene.add(glowLight);
+
+// Under-light: warm red upfill from below (like the heart rests on light)
+const underLight = new THREE.PointLight(0xff1122, 1.4, 6);
+underLight.position.set(0, -3, 1);
+scene.add(underLight);
 
 // ============================================================
 //  PBR TEXTURES
@@ -1159,15 +1164,15 @@ const heartMat = new THREE.MeshPhysicalMaterial({
   map:                TEX.base,
   normalMap:          TEX.norm,
   roughnessMap:       TEX.rough,
-  normalScale:        new THREE.Vector2(1.0, 1.0),  // full normal detail
+  normalScale:        new THREE.Vector2(1.2, 1.2),  // boosted normal detail
   metalness:          0.0,
-  roughness:          0.38,          // semi-glossy wet surface
-  envMapIntensity:    2.0,           // strong IBL — igloo-quality reflections
-  clearcoat:          0.45,          // wet pericardial membrane layer
-  clearcoatRoughness: 0.10,          // very smooth wet coat
-  ior:                1.45,          // biological tissue IOR
-  sheen:              0.18,          // microfiber scattering (cardiac muscle fibers)
-  sheenRoughness:     0.65,
+  roughness:          0.32,          // glossier wet surface
+  envMapIntensity:    3.5,           // ×1.75 IBL — richer environment reflections
+  clearcoat:          0.72,          // stronger wet pericardial membrane
+  clearcoatRoughness: 0.04,          // near-mirror smooth wet coat
+  ior:                1.45,
+  sheen:              0.28,          // stronger microfiber scattering
+  sheenRoughness:     0.60,
   sheenColor:         new THREE.Color(0xff2244),
 });
 
@@ -1177,8 +1182,8 @@ heartMat.onBeforeCompile = (shader) => {
     '#include <dithering_fragment>',
     `#include <dithering_fragment>
     float fresnelDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
-    float fresnel = pow(1.0 - fresnelDot, 4.5);
-    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.18;`
+    float fresnel = pow(1.0 - fresnelDot, 3.8);
+    gl_FragColor.rgb += fresnel * vec3(1.0, 0.08, 0.18) * 0.32;`
   );
 };
 
@@ -1187,10 +1192,10 @@ heartMat.onBeforeCompile = (shader) => {
 const sssMat = new THREE.MeshStandardMaterial({
   color:             0xff2244,
   emissive:          new THREE.Color(0xff1133),
-  emissiveIntensity: 0.08,
+  emissiveIntensity: 0.15,
   side:              THREE.BackSide,
   transparent:       true,
-  opacity:           0.16,
+  opacity:           0.22,
   depthWrite:        false,
   blending:          THREE.AdditiveBlending,
 });
@@ -1600,6 +1605,25 @@ scene.add(heartGroup);
 let heartReady     = false;
 let iglooAnimating = true; // blocks heartbeatScale from fighting scale tween
 
+// ── Anatomy Focus System ───────────────────────────────────────
+// When a label is active during scroll: flash + face-to-camera rotate + beacon
+let activeAnatomyId = null;   // which anatomy point is spotlit
+let focusRotY       = 0;      // target heartGroup.rotation.y to face active point
+const beaconMap     = {};     // id → { mesh, light } — created after FBX loads
+
+// Flash point light at the active anatomy position
+const flashLight = new THREE.PointLight(0xff0022, 0, 2.2);
+scene.add(flashLight);
+
+// Sonar ring geometry (reused for each pulse)
+const sonarRingGeo = new THREE.TorusGeometry(0.12, 0.012, 6, 32);
+const sonarRingMat = new THREE.MeshBasicMaterial({
+  color: 0xff0033, transparent: true, opacity: 0, depthWrite: false,
+});
+const sonarRing = new THREE.Mesh(sonarRingGeo, sonarRingMat);
+scene.add(sonarRing);
+let sonarT = 0; // 0..1 ring expansion phase
+
 new FBXLoader().load(
   './Heart.fbx',
   (fbx) => {
@@ -1630,6 +1654,29 @@ new FBXLoader().load(
     heartGroup.scale.setScalar(0);
     heartGroup.visible = false;
     heartReady = true;
+
+    // ── Build anatomy beacons (one glowing sphere per point) ───
+    const beaconGeo = new THREE.IcosahedronGeometry(0.055, 2);
+    anatomy.forEach(a => {
+      const bMat = new THREE.MeshStandardMaterial({
+        color:             0xff0022,
+        emissive:          new THREE.Color(0xff0022),
+        emissiveIntensity: 2.2,
+        transparent:       true,
+        opacity:           0,
+        depthWrite:        false,
+      });
+      const bMesh = new THREE.Mesh(beaconGeo, bMat);
+      bMesh.position.copy(a.worldOffset);
+      heartGroup.add(bMesh);
+
+      // Per-beacon PointLight (subtle local illumination on the surface)
+      const bLight = new THREE.PointLight(0xff1122, 0, 1.2);
+      bLight.position.copy(a.worldOffset);
+      heartGroup.add(bLight);
+
+      beaconMap[a.id] = { mesh: bMesh, light: bLight, mat: bMat };
+    });
 
     buildLabels();
     buildProgressNav();
@@ -1871,16 +1918,25 @@ function showLabel(id) {
   el.tab.classList.add('show');
 
   // igloo.inc letter-scramble: decode the anatomy name on reveal
-  const nameEl = el.tab.querySelector('.a-tab-name'); // inside .a-tab-header
+  const nameEl = el.tab.querySelector('.a-tab-name');
   const aData  = anatomy.find(a => a.id === id);
   if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
-
-  // Also scramble the part label above the dot
   if (aData) scrambleText(el.pname, aData.name, 0.50);
 
-  // Bezier leader line draw-on effect (MERIDIAN R4: precision line)
-  // Use GSAP to animate opacity from 0→1 with a slight delay per label
   gsap.fromTo(el.line, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.55, ease: 'power2.out' });
+
+  // ── Anatomy Focus System ───────────────────────────────────
+  if (aData) {
+    // Rotate heart to present this anatomy point face-on to camera
+    // atan2(-x, z) gives the Y rotation that maximises world-Z for the local offset
+    focusRotY     = Math.atan2(-aData.worldOffset.x, aData.worldOffset.z);
+    activeAnatomyId = id;
+    sonarT        = 0; // restart sonar ring
+
+    // Fade in beacon
+    const b = beaconMap[id];
+    if (b) gsap.to(b.mat, { opacity: 1, duration: 0.35, ease: 'power2.out' });
+  }
 }
 function hideLabel(id) {
   const el = els[id];
@@ -1890,8 +1946,18 @@ function hideLabel(id) {
   el.pname.style.opacity = '0';
   el.tab.classList.remove('show');
   el.line.setAttribute('opacity', '0');
+
+  // Fade out beacon
+  const b = beaconMap[id];
+  if (b) gsap.to(b.mat, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+  if (activeAnatomyId === id) activeAnatomyId = null;
 }
-function hideAllLabels() { anatomy.forEach(a => hideLabel(a.id)); }
+function hideAllLabels() {
+  anatomy.forEach(a => hideLabel(a.id));
+  activeAnatomyId = null;
+  flashLight.intensity = 0;
+  sonarRingMat.opacity = 0;
+}
 
 // ============================================================
 //  PROGRESS NAV
@@ -2161,8 +2227,8 @@ function heartbeatScale(dt) {
   const targetZRock = Math.sin(beatPhase) * 0.04;
   heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
 
-  // Subtle fill only — no pulsing glow, no neon effect
-  glowLight.intensity = 1.2 + beat * 0.8; // barely perceptible warmth on the beat
+  // Heartbeat glow — warm fill that breathes with each beat
+  glowLight.intensity = 2.2 + beat * 1.4;
 
   // MERIDIAN R8: CA fires with heartbeat systole (prefers-reduced-motion gated)
   if (!REDUCED_MOTION && lub > 0.6) {
@@ -2254,10 +2320,55 @@ let chromaVelocity = 0;
   // Camera target
   if (inSpiral) {
     spiralCamera(scrollProg);
-    // Banking roll during spiral — layered on top of heartbeat z-rock
+    // Banking roll during spiral
     const theta = scrollProg * Math.PI * 4;
     const bankTarget = Math.sin(theta * 0.5) * 0.08;
     heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, bankTarget, 3.5, dt);
+
+    // ── Anatomy Focus: rotate heart to face active anatomy point ──
+    if (activeAnatomyId) {
+      // Oscillate slightly around focusRotY so viewer sees the part from multiple angles
+      const oscillate = Math.sin(elapsed * 0.65) * 0.18;
+      const targetRotY = focusRotY + oscillate;
+      heartGroup.rotation.y = THREE.MathUtils.damp(heartGroup.rotation.y, targetRotY, 1.8, dt);
+    }
+  }
+
+  // ── Anatomy Flash + Sonar + Beacon ──────────────────────────
+  if (activeAnatomyId && heartReady) {
+    const aData = anatomy.find(a => a.id === activeAnatomyId);
+    if (aData) {
+      // Flash PointLight at anatomy surface position (world space)
+      const wp = aData.worldOffset.clone().applyQuaternion(heartGroup.quaternion);
+      wp.add(heartGroup.position);
+      flashLight.position.copy(wp);
+
+      // Double-flash pattern: two quick pulses per beat (like a heartbeat)
+      const flashPhase = (elapsed * 2.2) % 1.0;
+      let flashVal = 0;
+      if (flashPhase < 0.12)      flashVal = Math.sin((flashPhase / 0.12) * Math.PI);
+      else if (flashPhase < 0.28) flashVal = Math.sin(((flashPhase - 0.18) / 0.10) * Math.PI) * 0.6;
+      flashLight.intensity = flashVal * 3.5;
+
+      // Sonar ring: expand outward from beacon, fade out
+      sonarT = (sonarT + dt * 0.85) % 1.0;
+      const ringScale = 1.0 + sonarT * 4.0;
+      sonarRing.position.copy(wp);
+      sonarRing.lookAt(camera.position);    // always face camera
+      sonarRing.scale.setScalar(ringScale);
+      sonarRingMat.opacity = Math.max(0, (1.0 - sonarT) * 0.65);
+
+      // Beacon pulse: emissiveIntensity breathes
+      const b = beaconMap[activeAnatomyId];
+      if (b) {
+        b.mat.emissiveIntensity = 1.8 + Math.sin(elapsed * 6.5) * 0.8;
+        b.light.intensity       = 0.6 + Math.sin(elapsed * 6.5) * 0.4;
+      }
+    }
+  } else {
+    // No active anatomy — kill flash and sonar
+    flashLight.intensity    = THREE.MathUtils.damp(flashLight.intensity,    0, 8, dt);
+    sonarRingMat.opacity    = THREE.MathUtils.damp(sonarRingMat.opacity,    0, 8, dt);
   }
 
   // Frame-rate-independent smooth camera
