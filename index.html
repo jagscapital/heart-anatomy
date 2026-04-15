@@ -1497,154 +1497,136 @@ const anatomy = [
 ];
 
 // ============================================================
-//  CHEST CAVITY — BACKGROUND ENVIRONMENT
-//  All organs are FAR BACK in Z — they are room walls, not objects.
-//  Heart is centre-stage. Organs surround you in the periphery.
-//  Camera z≈7.5. Heart at z=0. Organs at z=-4 to z=-8.
+//  CHEST CAVITY -- SURROUNDING BARREL (you are INSIDE the chest)
+//  Camera z=7.5 is INSIDE the cage. Ribs arch overhead and sides.
+//  theta=0: front/sternum (z=+r, behind camera).
+//  theta=PI: back/spine (z=-r, behind heart).
+//  Heart is the small centrepiece. Ribs, lungs, spine are massive.
 // ============================================================
 const organGroup = new THREE.Group();
 organGroup.renderOrder = -1;
 scene.add(organGroup);
 
-// ── MATERIALS ───────────────────────────────────────────────
+// Materials
 const ribMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xd8cfc0), roughness: 0.65, metalness: 0.0,
-  transparent: true, opacity: 0.38, side: THREE.DoubleSide,
+  color: new THREE.Color(0xc8c0b0), roughness: 0.65, metalness: 0.0,
+  transparent: true, opacity: 0.62, side: THREE.DoubleSide, depthWrite: false,
 });
 const spineMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xe8e0d0), roughness: 0.60, metalness: 0.0,
-  transparent: true, opacity: 0.30,
+  color: new THREE.Color(0xd8d0c0), roughness: 0.60, metalness: 0.0,
+  transparent: true, opacity: 0.48, depthWrite: false,
 });
 const discMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(0xa89868), roughness: 0.72, metalness: 0.0,
-  transparent: true, opacity: 0.28,
+  color: new THREE.Color(0x907850), roughness: 0.72, metalness: 0.0,
+  transparent: true, opacity: 0.40, depthWrite: false,
 });
 const diaphragmMat = new THREE.MeshStandardMaterial({
   color: new THREE.Color(0x8a3828), roughness: 0.82, metalness: 0.0,
-  transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide,
+  transparent: true, opacity: 0.68, depthWrite: false, side: THREE.DoubleSide,
 });
 const tracheaMat = new THREE.MeshStandardMaterial({
   color: new THREE.Color(0xa0acb4), roughness: 0.55, metalness: 0.0,
-  transparent: true, opacity: 0.65,
+  transparent: true, opacity: 0.62, depthWrite: false,
 });
 
-// ── 1. RIBCAGE — far background, wraps around scene like a cage ─
-// Group at z=-3.5, scaled 3x — ribs become the walls of the room.
-// At this depth + scale the arcs extend well beyond camera FOV edges.
-
+// 1. RIBCAGE: 14 nearly-full arcs (330 deg) at radius 5.9-9.5.
+// Camera at z=7.5 is INSIDE. Ribs arch overhead and to the sides.
+// Sternum at z~+6.8 (behind viewer). Spine at z~-9.2 (behind heart).
 (function buildRibcage() {
-  const ribGroup = new THREE.Group();
-  // Unit-scale rib definitions (will be scaled 3x by group)
-  const ribDefs = [
-    [1.20, 1.05, false],
-    [0.95, 0.78, false],
-    [0.70, 0.50, false],
-    [0.44, 0.22, false],
-    [0.18,-0.06, false],
-    [-0.08,-0.32, false],
-    [-0.32,-0.52, true ],
-    [-0.52,-0.70, true ],
-  ];
-  ribDefs.forEach(([yT, yF, floating]) => {
-    [-1, 1].forEach(s => {
-      const pts = floating ? [
-        new THREE.Vector3(s*0.36,  yT,       -1.60),
-        new THREE.Vector3(s*1.30,  yT-0.03,  -1.10),
-        new THREE.Vector3(s*1.85,  yT-0.07,  -0.18),
-        new THREE.Vector3(s*1.45,  yF,         0.40),
-      ] : [
-        new THREE.Vector3(s*0.36,  yT,       -1.60),
-        new THREE.Vector3(s*1.42,  yT-0.02,  -1.15),
-        new THREE.Vector3(s*2.10,  yT-0.06,  -0.16),
-        new THREE.Vector3(s*1.52,  yF-0.04,   0.68),
-        new THREE.Vector3(s*0.16,  yF,         0.92),
-      ];
-      ribGroup.add(new THREE.Mesh(
-        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 22, 0.045, 7, false),
-        ribMat
-      ));
-    });
-  });
-  // Sternum
-  const sPts = [
-    new THREE.Vector3(0, 1.22, 0.92),
-    new THREE.Vector3(0, 0.50, 0.94),
-    new THREE.Vector3(0,-0.12, 0.95),
-    new THREE.Vector3(0,-0.38, 0.94),
-  ];
-  ribGroup.add(new THREE.Mesh(
-    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sPts), 14, 0.095, 8, false), ribMat
-  ));
-  const manu = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.28, 0.13), ribMat);
-  manu.position.set(0, 1.36, 0.92);
-  ribGroup.add(manu);
+  const NUM_RIBS = 14;
+  const BASE_R   = 9.5;
 
-  // KEY: push entire cage far back and scale it huge — it becomes the room walls
-  ribGroup.position.set(0, 0.3, -3.8);
-  ribGroup.scale.setScalar(2.8);
-  organGroup.add(ribGroup);
+  for (let i = 0; i < NUM_RIBS; i++) {
+    const t     = i / (NUM_RIBS - 1);
+    const yBase = -5.5 + t * 11.0;
+    const bell  = Math.sin(t * Math.PI);
+    const r     = BASE_R * (0.62 + bell * 0.40);
+
+    const GAP   = 0.28;
+    const STEPS = 48;
+    const pts   = [];
+
+    for (let j = 0; j <= STEPS; j++) {
+      const theta = GAP + (j / STEPS) * (Math.PI * 2 - GAP * 2);
+      const px = Math.sin(theta) * r;
+      const pz = Math.cos(theta) * r;
+      const bow = Math.abs(Math.sin(theta)) * (0.35 + bell * 0.50);
+      pts.push(new THREE.Vector3(px, yBase + bow, pz));
+    }
+
+    const tubeR = 0.18 + bell * 0.10;
+    organGroup.add(new THREE.Mesh(
+      new THREE.TubeGeometry(
+        new THREE.CatmullRomCurve3(pts, false, 'catmullrom', 0.5),
+        50, tubeR, 8, false
+      ),
+      ribMat
+    ));
+  }
+
+  // Sternum: vertical rod at front of cage (behind camera)
+  const stZ  = BASE_R * 0.72;
+  const sPts = [
+    new THREE.Vector3(0,  5.5, stZ),
+    new THREE.Vector3(0,  0.5, stZ * 1.04),
+    new THREE.Vector3(0, -2.5, stZ * 1.02),
+    new THREE.Vector3(0, -4.5, stZ * 0.98),
+  ];
+  organGroup.add(new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(sPts), 18, 0.38, 8, false), ribMat
+  ));
 })();
 
-// ── 2. SPINE — deepest background, the back wall ─────────────
-// Group at z=-6.5, scaled 2x — faint vertebrae column at the very back.
-
+// 2. SPINE: back wall at z=-9.2, visible behind the heart.
 (function buildSpine() {
-  const spineGroup = new THREE.Group();
-  const N = 12, yTop = 1.40, step = 0.24;
+  const spZ = -9.2;
+  const N = 12, yTop = 5.0, step = 0.85;
   for (let i = 0; i < N; i++) {
     const y = yTop - i * step;
-    const vbody = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.16, 8), spineMat);
-    vbody.position.set(0, y, 0);
-    spineGroup.add(vbody);
-    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.13, 0.30), spineMat);
-    sp.position.set(0, y, -0.28);
-    spineGroup.add(sp);
-    [-1,1].forEach(s => {
-      const tp = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.34, 6), spineMat);
+    const vbody = new THREE.Mesh(new THREE.CylinderGeometry(0.50, 0.50, 0.42, 8), spineMat);
+    vbody.position.set(0, y, spZ);
+    organGroup.add(vbody);
+    const sp = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.32, 0.72), spineMat);
+    sp.position.set(0, y, spZ - 0.54);
+    organGroup.add(sp);
+    [-1, 1].forEach(function(s) {
+      const tp = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.10, 0.88, 6), spineMat);
       tp.rotation.z = Math.PI * 0.5;
-      tp.position.set(s * 0.34, y, -0.04);
-      spineGroup.add(tp);
+      tp.position.set(s * 0.84, y, spZ - 0.10);
+      organGroup.add(tp);
     });
-    if (i < N-1) {
-      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.20, 0.20, 0.065, 8), discMat);
-      disc.position.set(0, y - 0.11, 0);
-      spineGroup.add(disc);
+    if (i < N - 1) {
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.45, 0.16, 8), discMat);
+      disc.position.set(0, y - step * 0.5, spZ);
+      organGroup.add(disc);
     }
   }
-  spineGroup.position.set(0, 0, -6.5);
-  spineGroup.scale.setScalar(2.0);
-  organGroup.add(spineGroup);
 })();
 
-// ── 3. DIAPHRAGM — floor far below ───────────────────────────
-// Wide domed floor well below the heart, pushed back so it reads as ground.
-
+// 3. DIAPHRAGM: large dome floor at y=-7.
 (function buildDiaphragm() {
-  const W = 4.5, D = 4.0, SEG = 40;
+  const W = 28, D = 22, SEG = 48;
   const geo = new THREE.PlaneGeometry(W, D, SEG, SEG);
   geo.rotateX(-Math.PI * 0.5);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), z = pos.getZ(i);
-    const r2 = (x/(W*0.5))**2 + (z/(D*0.5))**2;
-    pos.setY(i, 0.45 * Math.exp(-r2 * 1.1) + (x > 0 ? 0.07 * Math.exp(-r2*2) : 0));
+    const r2    = (x / (W * 0.5)) ** 2 + (z / (D * 0.5)) ** 2;
+    const dome  = 2.8 * Math.exp(-r2 * 0.6);
+    const asymm = x > 0 ? 0.55 * Math.exp(-r2 * 1.5) : 0;
+    pos.setY(i, dome + asymm);
   }
   pos.needsUpdate = true;
   geo.computeVertexNormals();
   const mesh = new THREE.Mesh(geo, diaphragmMat);
-  // Far below the heart, pushed back in Z, scaled wide
-  mesh.position.set(0, -4.5, -2.0);
-  mesh.scale.set(3.0, 1.0, 2.5);
+  mesh.position.set(0, -7.0, -1.5);
   organGroup.add(mesh);
 })();
 
-// ── 4. TRACHEA — above and behind ────────────────────────────
-// Visible above the heart as a background structure, not overlapping it.
-
+// 4. TRACHEA: above the heart, receding into background.
 (function buildTrachea() {
   const trGroup = new THREE.Group();
-  const trGeo = new THREE.CylinderGeometry(0.13, 0.15, 1.80, 11);
-  trGroup.add(new THREE.Mesh(trGeo, tracheaMat));
+  trGroup.add(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 1.80, 11), tracheaMat));
   for (let i = 0; i < 10; i++) {
     const rng = new THREE.Mesh(
       new THREE.TorusGeometry(0.15, 0.020, 6, 14, Math.PI * 1.5), tracheaMat);
@@ -1652,7 +1634,6 @@ const tracheaMat = new THREE.MeshStandardMaterial({
     rng.rotation.y = Math.PI * 0.5;
     trGroup.add(rng);
   }
-  // Left bronchus
   const lbPts = [
     new THREE.Vector3(0, -0.90, 0),
     new THREE.Vector3(-0.30, -1.05, 0.05),
@@ -1667,20 +1648,16 @@ const tracheaMat = new THREE.MeshStandardMaterial({
   ];
   trGroup.add(new THREE.Mesh(
     new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rbPts), 12, 0.080, 8, false), tracheaMat));
-
-  // Push high above and well back so it's clearly background
-  trGroup.position.set(0.08, 4.8, -3.0);
-  trGroup.scale.setScalar(1.8);
+  trGroup.position.set(0.15, 7.5, -3.5);
+  trGroup.scale.setScalar(3.0);
   organGroup.add(trGroup);
 })();
 
-// ── 5. LUNGS — real FBX, far behind heart on each side ───────
-// Scaled large, pushed deep in Z. They frame left/right periphery.
-// Breathe animation: inflate/deflate at 14 breaths/min.
-
+// 5. LUNGS: massive FBX centered in chest, 8 units tall.
+// Semi-transparent so heart shows through. Breathe at 14/min.
 let lungsGroup = null;
-let lungsBaseScale = 1; // set after FBX normalise+upscale, used by breathe anim
-const BREATHE_PERIOD = 60 / 14; // ~4.3 s per cycle
+let lungsBaseScale = 1;
+const BREATHE_PERIOD = 60 / 14;
 
 {
   const tl2 = new THREE.TextureLoader();
@@ -1692,37 +1669,35 @@ const BREATHE_PERIOD = 60 / 14; // ~4.3 s per cycle
   const lungFbxMat = new THREE.MeshStandardMaterial({
     map:         lungDiffuse,
     bumpMap:     lungBump,
-    bumpScale:   0.45,
-    roughness:   0.85,
+    bumpScale:   0.35,
+    roughness:   0.82,
     metalness:   0.0,
     transparent: true,
-    opacity:     0.58,
+    opacity:     0.52,
     depthWrite:  false,
     side:        THREE.DoubleSide,
   });
 
-  new FBXLoader().load('./organs/lungs.fbx', (fbx) => {
+  new FBXLoader().load('./organs/lungs.fbx', function(fbx) {
     const box = new THREE.Box3().setFromObject(fbx);
     const sz  = new THREE.Vector3(); box.getSize(sz);
-    const sc  = 2.2 / Math.max(sz.x, sz.y, sz.z);
+    const finalScale = 8.0 / Math.max(sz.x, sz.y, sz.z);
     const ctr = new THREE.Vector3(); box.getCenter(ctr);
 
-    fbx.traverse(c => {
+    fbx.traverse(function(c) {
       if (c.isMesh) { c.material = lungFbxMat; c.castShadow = false; }
     });
-    // Center and scale in one step — avoids off-center shift from two-step approach
-    const finalScale = sc * 2.8;
     fbx.scale.setScalar(finalScale);
-    fbx.position.sub(ctr.multiplyScalar(finalScale)); // center based on final scale
-    fbx.position.y += -0.20;
-    fbx.position.z += -4.0;   // deep background
+    fbx.position.sub(ctr.multiplyScalar(finalScale));
+    fbx.position.y += 0.5;
+    fbx.position.z += -2.5;
     lungsBaseScale = finalScale;
 
     lungsGroup = fbx;
     organGroup.add(lungsGroup);
   },
   undefined,
-  (err) => console.warn('Lungs FBX:', err));
+  function(err) { console.warn('Lungs FBX:', err); });
 }
 
 // ============================================================
