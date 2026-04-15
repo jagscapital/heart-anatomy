@@ -754,13 +754,12 @@
       -webkit-backface-visibility: hidden;
       will-change: transform, opacity;
       opacity: 0.22;
-      transition: border-color 0.35s ease, box-shadow 0.35s ease, opacity 0.35s ease;
+      transition: border-color 0.35s ease, opacity 0.35s ease;
       pointer-events: none;
     }
     .fact-card.active {
       opacity: 1;
-      border-color: rgba(255,255,255,0.30);
-      box-shadow: 0 0 36px rgba(255,255,255,0.07), 0 0 0 1px rgba(255,255,255,0.05);
+      border-color: rgba(255,255,255,0.28);
     }
     .fact-card.pro { border-left: 2px solid rgba(79,195,247,0.50); }
     .fact-card.con { border-right: 2px solid rgba(255,107,107,0.50); }
@@ -2459,19 +2458,17 @@ function setupFactsSection() {
   }
 
   function animateIn() {
-    overlay.classList.add('visible');
-    heading.classList.add('visible');
-    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out' });
-    gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out' });
-    // Pop ring in from slightly below
-    gsap.fromTo(ring, { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6, ease: 'back.out(1.4)' });
+    // Fade the overlay wrapper — never touch opacity on #facts-ring itself
+    // (opacity on a preserve-3d element collapses 3D in Firefox/Safari)
+    gsap.fromTo(overlay, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
+    gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
+    // Slide ring up into view — Y only, no opacity
+    gsap.fromTo(ring, { y: 28 }, { y: 0, duration: 0.55, ease: 'back.out(1.4)', overwrite: true });
   }
 
   function animateOut() {
-    overlay.classList.remove('visible');
-    heading.classList.remove('visible');
-    gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power2.in' });
-    gsap.to(heading, { opacity: 0, duration: 0.3 });
+    gsap.to(overlay, { opacity: 0, duration: 0.3, ease: 'power2.in', overwrite: true });
+    gsap.to(heading, { opacity: 0, duration: 0.3, overwrite: true });
     cardEls.forEach(c => c.classList.remove('active'));
     currentActive = -1;
   }
@@ -2486,9 +2483,10 @@ function setupFactsSection() {
     onEnter() {
       factsActive = true;
       gsap.to(camT, { z: 10.0, duration: 0.8, ease: 'power2.out' });
-      // Snap ring to card 0 before animating in
-      spinTo(0, true);
-      activateCard(0);
+      // Reset ring to card 0, then let onUpdate drive from there
+      gsap.set(ring, { rotateY: 0, y: 28 });
+      currentActive = -1;
+      cardEls.forEach(c => c.classList.remove('active'));
       animateIn();
     },
     onLeave() {
