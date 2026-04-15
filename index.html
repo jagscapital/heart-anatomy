@@ -1011,7 +1011,8 @@ const chromaPass = new ShaderPass({
       float r = texture2D(tDiffuse, vUv + dir * uStrength * 1.5).r;
       float g = texture2D(tDiffuse, vUv).g;
       float b = texture2D(tDiffuse, vUv - dir * uStrength * 1.5).b;
-      gl_FragColor = vec4(r, g, b, 1.0);
+      float a = texture2D(tDiffuse, vUv).a; // preserve alpha — never stomp to 1.0
+      gl_FragColor = vec4(r, g, b, a);
     }
   `,
 });
@@ -1418,7 +1419,8 @@ const travelerMat = new THREE.ShaderMaterial({
 });
 
 const travelerPoints = new THREE.Points(travelerGeo, travelerMat);
-scene.add(travelerPoints);
+// traveler system disabled — bgLineObjs is empty, updateTravelers never called.
+// Do NOT add to scene: 40 white additive points would otherwise sit at (0,0,0) on the heart.
 
 function updateTravelers(elapsed, dt) {
   travelers.forEach((tr, i) => {
@@ -1708,14 +1710,12 @@ const BREATHE_PERIOD = 60 / 14; // ~4.3 s per cycle
     fbx.traverse(c => {
       if (c.isMesh) { c.material = lungFbxMat; c.castShadow = false; }
     });
-    fbx.scale.setScalar(sc);
-    fbx.position.sub(ctr.multiplyScalar(sc));
-
-    // Far behind heart, scaled up to fill background side-panels
+    // Center and scale in one step — avoids off-center shift from two-step approach
+    const finalScale = sc * 2.8;
+    fbx.scale.setScalar(finalScale);
+    fbx.position.sub(ctr.multiplyScalar(finalScale)); // center based on final scale
     fbx.position.y += -0.20;
     fbx.position.z += -4.0;   // deep background
-    const finalScale = sc * 2.8; // store before breathe anim overwrites it
-    fbx.scale.setScalar(finalScale);
     lungsBaseScale = finalScale;
 
     lungsGroup = fbx;
@@ -2084,7 +2084,10 @@ function hideLabel(id) {
 
   // Fade out beacon
   const b = beaconMap[id];
-  if (b) gsap.to(b.mat, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+  if (b) {
+    gsap.to(b.mat, { opacity: 0, duration: 0.25, ease: 'power2.in' });
+    b.light.intensity = 0; // kill point light immediately — it's not managed by render loop when inactive
+  }
   if (activeAnatomyId === id) activeAnatomyId = null;
 }
 function hideAllLabels() {
@@ -2358,9 +2361,12 @@ function heartbeatScale(dt) {
   heartGroup.scale.set(sx, sy, sz);
 
   // BOT-01: apex rocking on Z, synchronized with beat cycle
-  const beatPhase = beatT * (bpm / 60) * TWO_PI;
-  const targetZRock = Math.sin(beatPhase) * 0.04;
-  heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
+  // Skip during spiral — spiral banking owns rotation.z there, fighting causes jitter
+  if (!inSpiral) {
+    const beatPhase = beatT * (bpm / 60) * TWO_PI;
+    const targetZRock = Math.sin(beatPhase) * 0.04;
+    heartGroup.rotation.z += (targetZRock - heartGroup.rotation.z) * Math.min(dt * 8.0, 1.0);
+  }
 
   glowLight.intensity = 1.0 + beat * 0.55;
 
@@ -2480,8 +2486,8 @@ let chromaVelocity = 0;
       // Double-flash pattern: two quick pulses per beat (like a heartbeat)
       const flashPhase = (elapsed * 2.2) % 1.0;
       let flashVal = 0;
-      if (flashPhase < 0.12)      flashVal = Math.sin((flashPhase / 0.12) * Math.PI);
-      else if (flashPhase < 0.28) flashVal = Math.sin(((flashPhase - 0.18) / 0.10) * Math.PI) * 0.6;
+      if (flashPhase < 0.12)                           flashVal = Math.sin((flashPhase / 0.12) * Math.PI);
+      else if (flashPhase >= 0.18 && flashPhase < 0.28) flashVal = Math.sin(((flashPhase - 0.18) / 0.10) * Math.PI) * 0.6;
       flashLight.intensity = flashVal * 3.5;
 
       // Sonar ring: expand outward from beacon, fade out
