@@ -804,7 +804,6 @@
       opacity: 0;
       transition: opacity 0.5s ease;
     }
-    #facts-heading.visible { opacity: 1; }
     #facts-heading h2 {
       font-family: 'Space Grotesk', sans-serif;
       font-size: clamp(16px, 2vw, 24px);
@@ -963,50 +962,16 @@
   <div id="facts-ring-wrap">
     <div id="facts-ring">
 
-  <!-- PRO cards (idx 0-3) -->
-  <div class="fact-card pro">
-    <div class="fact-card-tag">Pro</div>
-    <h3 class="fact-card-title">Never Sleeps</h3>
-    <p class="fact-card-body">Beats ~100,000 times a day, every day, without a single break for your entire life.</p>
-  </div>
-  <div class="fact-card pro">
-    <div class="fact-card-tag">Pro</div>
-    <h3 class="fact-card-title">Self-Powered</h3>
-    <p class="fact-card-body">The SA node generates its own electrical signal — no brain required to keep it beating.</p>
-  </div>
-  <div class="fact-card pro">
-    <div class="fact-card-tag">Pro</div>
-    <h3 class="fact-card-title">Adapts Instantly</h3>
-    <p class="fact-card-body">Output can jump 5× during exercise in seconds, delivering exactly the oxygen muscles need.</p>
-  </div>
-  <div class="fact-card pro">
-    <div class="fact-card-tag">Pro</div>
-    <h3 class="fact-card-title">2,000 Gallons / Day</h3>
-    <p class="fact-card-body">Pumps blood through 60,000 miles of blood vessels — enough to circle Earth twice.</p>
-  </div>
-
-  <!-- CON cards (idx 4-7) -->
-  <div class="fact-card con">
-    <div class="fact-card-tag">Con</div>
-    <h3 class="fact-card-title">No. 1 Killer</h3>
-    <p class="fact-card-body">Heart disease kills more people worldwide than any other cause — one attack every 40 seconds in the US.</p>
-  </div>
-  <div class="fact-card con">
-    <div class="fact-card-tag">Con</div>
-    <h3 class="fact-card-title">Can't Regenerate</h3>
-    <p class="fact-card-body">Adult heart muscle cells barely divide. Damage from a heart attack is largely permanent.</p>
-  </div>
-  <div class="fact-card con">
-    <div class="fact-card-tag">Con</div>
-    <h3 class="fact-card-title">Silent Blockages</h3>
-    <p class="fact-card-body">Plaque can build inside arteries for decades with zero symptoms — until the first heart attack.</p>
-  </div>
-  <div class="fact-card con">
-    <div class="fact-card-tag">Con</div>
-    <h3 class="fact-card-title">Stress Damage</h3>
-    <p class="fact-card-body">Chronic stress floods the body with cortisol, which stiffens arteries and weakens the heart muscle over time.</p>
-  </div>
-
+      <!-- PRO cards -->
+      <div class="fact-card pro"><div class="fact-card-tag">Pro</div><h3 class="fact-card-title">Never Sleeps</h3><p class="fact-card-body">Beats ~100,000 times a day, every day, without a single break for your entire life.</p></div>
+      <div class="fact-card pro"><div class="fact-card-tag">Pro</div><h3 class="fact-card-title">Self-Powered</h3><p class="fact-card-body">The SA node generates its own electrical signal — no brain required to keep it beating.</p></div>
+      <div class="fact-card pro"><div class="fact-card-tag">Pro</div><h3 class="fact-card-title">Adapts Instantly</h3><p class="fact-card-body">Output can jump 5× during exercise in seconds, delivering exactly the oxygen muscles need.</p></div>
+      <div class="fact-card pro"><div class="fact-card-tag">Pro</div><h3 class="fact-card-title">2,000 Gallons / Day</h3><p class="fact-card-body">Pumps blood through 60,000 miles of blood vessels — enough to circle Earth twice.</p></div>
+      <!-- CON cards -->
+      <div class="fact-card con"><div class="fact-card-tag">Con</div><h3 class="fact-card-title">No. 1 Killer</h3><p class="fact-card-body">Heart disease kills more people worldwide than any other cause — one attack every 40 seconds in the US.</p></div>
+      <div class="fact-card con"><div class="fact-card-tag">Con</div><h3 class="fact-card-title">Can't Regenerate</h3><p class="fact-card-body">Adult heart muscle cells barely divide. Damage from a heart attack is largely permanent.</p></div>
+      <div class="fact-card con"><div class="fact-card-tag">Con</div><h3 class="fact-card-title">Silent Blockages</h3><p class="fact-card-body">Plaque can build inside arteries for decades with zero symptoms — until the first heart attack.</p></div>
+      <div class="fact-card con"><div class="fact-card-tag">Con</div><h3 class="fact-card-title">Stress Damage</h3><p class="fact-card-body">Chronic stress floods the body with cortisol, which stiffens arteries and weakens the heart muscle over time.</p></div>
     </div><!-- #facts-ring -->
   </div><!-- #facts-ring-wrap -->
 </div><!-- #facts-overlay -->
@@ -2524,11 +2489,16 @@ function setupFactsSection() {
     onEnterBack() {
       factsActive = true;
       gsap.to(camT, { z: 10.0, duration: 0.5, ease: 'power2.out' });
+      // Reset ring state same as onEnter so slide-in plays correctly
+      gsap.set(ring, { rotateY: 0, y: 28 });
+      currentActive = -1;
+      cardEls.forEach(c => c.classList.remove('active'));
       animateIn();
     },
     onLeaveBack() {
       factsActive = false;
       animateOut();
+      camT.z = 7.5; camT.y = 0.0; // restore camera — was missing here
     },
     onUpdate(self) {
       if (!factsActive) return;
