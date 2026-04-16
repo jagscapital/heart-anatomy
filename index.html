@@ -1933,10 +1933,12 @@ new FBXLoader().load(
         ch.castShadow    = true;
         ch.receiveShadow = true;
         ch.material      = heartMat;
+        ch.renderOrder   = 0;
         const sssClone = ch.clone();
-        sssClone.material = sssMat;
+        sssClone.material    = sssMat;
         sssClone.scale.multiplyScalar(1.04);
-        sssClone.castShadow = false;
+        sssClone.castShadow  = false;
+        sssClone.renderOrder = 1; // always draws over outer heart mesh — no z-fight
         heartGroup.add(sssClone);
       }
     });
@@ -2233,8 +2235,12 @@ function showLabel(id) {
     activeAnatomyId = id;
     sonarT        = 0; // restart sonar ring
 
-    // Dim heart — active point will be lit by beacon, rest reads as background
+    // Dim heart + SSS shell proportionally — active beacon pops against dim surface
+    // sssMat base is 0.22, proportional target: 0.38 * 0.22 = 0.08
     gsap.to(heartMat, { opacity: 0.38, duration: 0.35, ease: 'power2.out' });
+    gsap.to(sssMat,   { opacity: 0.08, duration: 0.35, ease: 'power2.out' });
+    // Tighten glowLight to focused region only
+    gsap.to(glowLight, { distance: 1.8, duration: 0.35, ease: 'power2.out' });
 
     // Fade in beacon
     const b = beaconMap[id];
@@ -2263,8 +2269,12 @@ function hideAllLabels() {
   activeAnatomyId = null;
   flashLight.intensity = 0;
   sonarRingMat.opacity = 0;
-  // Restore heart to full opacity
+  // Restore heart and SSS to full opacity
   gsap.to(heartMat, { opacity: 1.0, duration: 0.4, ease: 'power2.out' });
+  gsap.to(sssMat,   { opacity: 0.22, duration: 0.4, ease: 'power2.out' });
+  // Restore glowLight to home position and range
+  gsap.to(glowLight, { distance: 4.5, duration: 0.4, ease: 'power2.out' });
+  gsap.to(glowLight.position, { x: 0, y: 0.5, z: 2.5, duration: 0.6, ease: 'power2.out' });
 }
 
 // ============================================================
@@ -2756,7 +2766,7 @@ let chromaVelocity = 0;
       const wp = aData.worldOffset.clone().multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
       wp.add(heartGroup.position);
       flashLight.position.copy(wp);
-      glowLight.position.lerp(wp, Math.min(dt * 6, 1));
+      glowLight.position.lerp(wp, THREE.MathUtils.damp(0, 1, 6, dt));
 
       // Double-flash pattern: two quick pulses per beat (like a heartbeat)
       const flashPhase = (elapsed * 2.2) % 1.0;
