@@ -1153,10 +1153,10 @@ composer.addPass(renderPass);
 // AUDIT FIX 6: threshold 0.55 → 0.48 — catches wet surface specular highlights
 // that were previously below the bloom threshold
 const bloom = new UnrealBloomPass(
-  new THREE.Vector2(window.innerWidth, window.innerHeight),
-  0.28,  // strength — subtle specular glow only
+  new THREE.Vector2(window.innerWidth * 0.5, window.innerHeight * 0.5),
+  0.28,  // strength
   0.38,  // radius
-  0.52   // threshold — only the brightest specular highlights
+  0.52   // threshold
 );
 composer.addPass(bloom);
 
@@ -1986,9 +1986,10 @@ new FBXLoader().load(
       emissive:    new THREE.Color(0x1133aa),
       emissiveIntensity: 0.18,
       metalness:   0.0,
-      roughness:   0.08,         // very glassy
+      roughness:   0.08,
       transparent: true,
       opacity:     0.72,
+      depthWrite:  false,        // prevent depth fighting between overlapping blocks
       envMapIntensity: 1.4,
     });
 
@@ -2083,6 +2084,9 @@ new FBXLoader().load(
     }, 2.75);
     tl.add(() => {
       scene.remove(iglooGroup);
+      // Free GPU memory — geometry and cloned materials are no longer needed
+      blockGeo.dispose();
+      iglooBlocks.forEach(b => b.material.dispose());
     }, 3.0);
 
     gsap.to(camT, { z: 7.5, duration: 2.8, ease: 'power2.out', delay: 0.4 });
@@ -2154,22 +2158,26 @@ function buildLabels() {
   });
 }
 
+// Cached vectors — reused every frame, zero heap allocation per call
+const _wp       = new THREE.Vector3();
+const _toCamera = new THREE.Vector3();
+
 function updateLabelPositions() {
   if (!heartReady) return;
   anatomy.forEach(a => {
     const el = els[a.id];
     if (!el.active) return;
 
-    const wp  = a.worldOffset.clone().multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
+    _wp.copy(a.worldOffset).multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
 
     // Back-face cull: hide label when anatomy point faces away from camera
-    const toCamera = camera.position.clone().sub(heartGroup.position).normalize();
-    const isFacing = wp.dot(toCamera) > -0.1;
+    _toCamera.copy(camera.position).sub(heartGroup.position).normalize();
+    const isFacing = _wp.dot(_toCamera) > -0.1;
     el.tab.classList.toggle('backface', !isFacing);
     el.dot.classList.toggle('backface', !isFacing);
     el.pname.classList.toggle('backface', !isFacing);
 
-    const ndc = wp.clone().project(camera);
+    const ndc = _wp.clone().project(camera);
     const sx  = (ndc.x  *  0.5 + 0.5) * window.innerWidth;
     const sy  = (-ndc.y *  0.5 + 0.5) * window.innerHeight;
 
@@ -2697,7 +2705,7 @@ let chromaVelocity = 0;
 
 (function render() {
   requestAnimationFrame(render);
-  const dt      = clock.getDelta();
+  const dt      = Math.min(clock.getDelta(), 0.05); // cap at 50ms — prevents spiral after tab-switch
   const elapsed = clock.elapsedTime;
 
   // Scroll velocity → chromatic aberration spike
