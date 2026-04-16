@@ -2440,22 +2440,28 @@ function setupFactsSection() {
     }
   }
 
+  const STAIR_STEP = 62; // px each card drops the ring — staircase feel
+
   function activateCard(idx) {
     if (idx === currentActive) return;
     currentActive = idx;
+    // Spin to new card
     spinTo(idx, false);
-    cardEls.forEach((card, i) => {
-      card.classList.toggle('active', i === idx);
+    // Drop ring one stair step per card — spin + descent = spiral staircase
+    gsap.to(ring, {
+      y: idx * -STAIR_STEP,
+      duration: 0.55,
+      ease: 'power2.inOut',
+      overwrite: 'auto',
     });
+    cardEls.forEach((card, i) => card.classList.toggle('active', i === idx));
   }
 
   function animateIn() {
-    // Show overlay via visibility (NOT opacity) so the preserve-3d 3D context
-    // on #facts-ring is never collapsed by a stacking context on the parent.
     overlay.classList.add('visible');
     gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
-    // Slide ring in from below — Y only, preserve-3d safe
-    gsap.fromTo(ring, { y: 28 }, { y: 0, duration: 0.55, ease: 'back.out(1.4)', overwrite: 'auto' });
+    // Drop ring in from above — lands at stair position of card 0 (y=0)
+    gsap.fromTo(ring, { y: 60 }, { y: 0, duration: 0.6, ease: 'back.out(1.3)', overwrite: true });
   }
 
   function animateOut() {
@@ -2475,10 +2481,11 @@ function setupFactsSection() {
     onEnter() {
       factsActive = true;
       gsap.to(camT, { z: 10.0, duration: 0.8, ease: 'power2.out' });
-      // Reset ring to card 0, then let onUpdate drive from there
-      gsap.set(ring, { rotateY: 0, y: 28 });
-      currentActive = -1;
+      // Pre-set card 0 so onUpdate doesn't cancel the slide-in animation
+      gsap.set(ring, { rotateY: 0, y: 60 });
+      currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
+      cardEls[0].classList.add('active');
       animateIn();
     },
     onLeave() {
@@ -2489,21 +2496,23 @@ function setupFactsSection() {
     onEnterBack() {
       factsActive = true;
       gsap.to(camT, { z: 10.0, duration: 0.5, ease: 'power2.out' });
-      // Reset ring state same as onEnter so slide-in plays correctly
-      gsap.set(ring, { rotateY: 0, y: 28 });
-      currentActive = -1;
+      gsap.set(ring, { rotateY: 0, y: 60 });
+      currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
+      cardEls[0].classList.add('active');
       animateIn();
     },
     onLeaveBack() {
       factsActive = false;
       animateOut();
-      camT.z = 7.5; camT.y = 0.0; // restore camera — was missing here
+      camT.z = 7.5; camT.y = 0.0;
     },
     onUpdate(self) {
       if (!factsActive) return;
       const idx = Math.min(FACTS_NUM - 1, Math.floor(self.progress * FACTS_NUM));
       activateCard(idx);
+      // Camera sinks as you descend the staircase — heart drifts up in frame
+      camT.y = THREE.MathUtils.lerp(0.2, -1.8, self.progress);
     },
   });
 }
