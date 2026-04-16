@@ -736,7 +736,6 @@
     #facts-ring {
       position: absolute;
       transform-style: preserve-3d;
-      will-change: transform;
     }
 
     /* Individual cards live on the ring surface */
@@ -2288,6 +2287,7 @@ function setActivePDot(i) {
 // ============================================================
 let scrollProg = 0;
 let inSpiral   = false;
+let inFacts    = false;
 
 const SCROLL_PX = window.innerHeight * (IS_MOBILE ? 4 : 7);
 const N         = anatomy.length;
@@ -2358,7 +2358,7 @@ function setupScroll() {
     onLeave() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
       camT.z = 9.5; camT.y = 0.4;
-      setTimeout(() => { if (!inSpiral) { camT.z = 7.5; camT.y = 0.0; } }, 800);
+      setTimeout(() => { if (!inSpiral && !inFacts) { camT.z = 7.5; camT.y = 0.0; } }, 800);
     },
     onLeaveBack() {
       inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
@@ -2440,7 +2440,7 @@ function setupFactsSection() {
     }
   }
 
-  const STAIR_STEP = 62; // px each card drops the ring — staircase feel
+  const STAIR_STEP = 16; // px each card drops the ring — small so ring stays on-screen on mobile
 
   function activateCard(idx) {
     if (idx === currentActive) return;
@@ -2449,7 +2449,7 @@ function setupFactsSection() {
     spinTo(idx, false);
     // Drop ring one stair step per card — spin + descent = spiral staircase
     gsap.to(ring, {
-      y: idx * -STAIR_STEP,
+      y: idx * STAIR_STEP,
       duration: 0.55,
       ease: 'power2.inOut',
       overwrite: 'auto',
@@ -2460,8 +2460,8 @@ function setupFactsSection() {
   function animateIn() {
     overlay.classList.add('visible');
     gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
-    // Drop ring in from above — lands at stair position of card 0 (y=0)
-    gsap.fromTo(ring, { y: 60 }, { y: 0, duration: 0.6, ease: 'back.out(1.3)', overwrite: true });
+    // Descend ring in from above — matches the staircase-descent direction
+    gsap.fromTo(ring, { y: -50 }, { y: 0, duration: 0.6, ease: 'back.out(1.3)', overwrite: true });
   }
 
   function animateOut() {
@@ -2479,31 +2479,31 @@ function setupFactsSection() {
     pinSpacing: true,
     scrub:      0.4,
     onEnter() {
-      factsActive = true;
+      factsActive = true; inFacts = true;
       gsap.to(camT, { z: 10.0, duration: 0.8, ease: 'power2.out' });
       // Pre-set card 0 so onUpdate doesn't cancel the slide-in animation
-      gsap.set(ring, { rotateY: 0, y: 60 });
+      gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
       cardEls[0].classList.add('active');
       animateIn();
     },
     onLeave() {
-      factsActive = false;
+      factsActive = false; inFacts = false;
       animateOut();
       camT.z = 7.5; camT.y = 0.0;
     },
     onEnterBack() {
-      factsActive = true;
+      factsActive = true; inFacts = true;
       gsap.to(camT, { z: 10.0, duration: 0.5, ease: 'power2.out' });
-      gsap.set(ring, { rotateY: 0, y: 60 });
+      gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
       cardEls[0].classList.add('active');
       animateIn();
     },
     onLeaveBack() {
-      factsActive = false;
+      factsActive = false; inFacts = false;
       animateOut();
       camT.z = 7.5; camT.y = 0.0;
     },
