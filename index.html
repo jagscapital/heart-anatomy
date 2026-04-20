@@ -52,39 +52,15 @@
        - 12 paths spanning x:-200 to x:1640 (beyond viewport)
        - very slow drift animations (17-35s cycles)
     ───────────────────────────────────────────── */
-    #bg-lines {
-      position: fixed;
-      inset: 0;
-      width: 100%; height: 100%;
-      z-index: 0;
-      pointer-events: none;
-      opacity: 1;
-    }
+    /* .bl — stroke style for the 3 animated paths inside #tech-grid */
     .bl {
       fill: none;
       stroke: rgba(220, 230, 255, 0.032);
       stroke-width: 1.0;
     }
-    .bl-1  { animation: bdrift1 22s ease-in-out infinite; }
-    .bl-2  { animation: bdrift2 28s ease-in-out infinite; animation-delay:-6s; }
     .bl-3  { animation: bdrift3 19s ease-in-out infinite; animation-delay:-11s; }
-    .bl-4  { animation: bdrift1 31s ease-in-out infinite; animation-delay:-4s; }
-    .bl-5  { animation: bdrift2 24s ease-in-out infinite; animation-delay:-15s; }
     .bl-6  { animation: bdrift3 35s ease-in-out infinite; animation-delay:-8s; }
-    .bl-7  { animation: bdrift1 17s ease-in-out infinite; animation-delay:-2s; }
-    .bl-8  { animation: bdrift2 26s ease-in-out infinite; animation-delay:-18s; }
     .bl-9  { animation: bdrift3 21s ease-in-out infinite; animation-delay:-9s; }
-    .bl-10 { animation: bdrift1 33s ease-in-out infinite; animation-delay:-13s; }
-    .bl-11 { animation: bdrift2 15s ease-in-out infinite; animation-delay:-7s; }
-    .bl-12 { animation: bdrift3 29s ease-in-out infinite; animation-delay:-20s; }
-    @keyframes bdrift1 {
-      0%,100% { transform: translateY(0px); }
-      50%      { transform: translateY(-22px); }
-    }
-    @keyframes bdrift2 {
-      0%,100% { transform: translateY(0px) scaleX(1); }
-      50%      { transform: translateY(16px) scaleX(1.015); }
-    }
     @keyframes bdrift3 {
       0%,100% { transform: translateY(0px) translateX(0px); }
       50%      { transform: translateY(-12px) translateX(18px); }
@@ -820,6 +796,15 @@
       color: rgba(255,255,255,0.28);
       margin: 0;
     }
+    #facts-counter {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(232,35,58,0.65);
+      margin-top: 8px !important;
+    }
 
   </style>
 </head>
@@ -916,7 +901,7 @@
 <button id="sound-btn" aria-label="Toggle heartbeat sound" title="Toggle sound">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
     <path id="sound-icon-heart" d="M12 21C12 21 3 14.5 3 8.5C3 5.4 5.5 3 8 3C9.8 3 11.1 4 12 5.4C12.9 4 14.2 3 16 3C18.5 3 21 5.4 21 8.5C21 14.5 12 21 12 21Z"/>
-    <path id="sound-icon-wave" d="M19 9C19.6 9.8 20 10.8 20 12" opacity="0.5"/>
+    <path id="sound-icon-wave" d="M19 9C19.6 9.8 20 10.8 20 12" opacity="0"/>
   </svg>
 </button>
 
@@ -953,8 +938,9 @@
 
 <!-- ── Facts orbital overlay ────────────────────── -->
 <div id="facts-heading">
-  <h2>Heart Facts</h2>
-  <p>Pros &amp; Cons</p>
+  <h2>Did You Know?</h2>
+  <p>The good and the brutal</p>
+  <p id="facts-counter">1 / 8</p>
 </div>
 
 <div id="facts-overlay">
@@ -1475,13 +1461,6 @@ function updateCrystals() {
   });
 }
 
-// Dummy for old traveler/bgLine refs that may still exist below
-const bgLineObjs = [];
-const BG_LINE_COUNT = 0;
-function buildBgLines() {}
-function updateBgLines() {}
-buildBgLines();
-
 function updateParticles(dt) {
   for (let i = 0; i < PARTICLE_COUNT; i++) {
     // Save previous pos for velocity calc
@@ -1510,77 +1489,6 @@ function updateParticles(dt) {
   particleGeo.attributes.position.needsUpdate = true;
   particleGeo.attributes.velocity.needsUpdate = true;
   particleMat.uniforms.uTime.value += dt;
-}
-
-// ============================================================
-//  TRAVELING LIGHT DOTS  (BOT-04/05: 40 Points, shader-based)
-//  Each dot rides the path of one of the 22 3D background lines.
-//  Speed varies per dot so they don't clump. The shader draws
-//  each as a soft radial white disk (additive blend = glow on
-//  dark background). Size pulses slowly with uTime.
-// ============================================================
-const TRAVELER_COUNT = 40;
-
-const travelers = Array.from({ length: TRAVELER_COUNT }, (_, i) => ({
-  lineIdx: i % BG_LINE_COUNT,
-  t:       Math.random(),
-  speed:   0.04 + Math.random() * 0.10,
-  phase:   Math.random() * Math.PI * 2,
-}));
-
-const travelerPositions = new Float32Array(TRAVELER_COUNT * 3);
-const travelerGeo = new THREE.BufferGeometry();
-travelerGeo.setAttribute('position', new THREE.BufferAttribute(travelerPositions, 3));
-
-const travelerMat = new THREE.ShaderMaterial({
-  uniforms: {
-    uTime:    { value: 0 },
-    uOpacity: { value: 0.80 },
-  },
-  vertexShader: `
-    uniform float uTime;
-    void main() {
-      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      float dist = length((modelViewMatrix * vec4(position, 1.0)).xyz);
-      // Base size 3px, plus a slow 0–3px pulse
-      gl_PointSize = max(1.5, (260.0 / dist) * (0.4 + 0.6 * abs(sin(uTime * 1.4))));
-    }
-  `,
-  fragmentShader: `
-    uniform float uOpacity;
-    void main() {
-      float d = length(gl_PointCoord - 0.5) * 2.0;
-      float alpha = (1.0 - smoothstep(0.3, 1.0, d)) * uOpacity;
-      gl_FragColor = vec4(1.0, 1.0, 1.0, alpha);
-    }
-  `,
-  transparent: true,
-  depthWrite:  false,
-  blending:    THREE.AdditiveBlending,
-});
-
-const travelerPoints = new THREE.Points(travelerGeo, travelerMat);
-// traveler system disabled — bgLineObjs is empty, updateTravelers never called.
-// Do NOT add to scene: 40 white additive points would otherwise sit at (0,0,0) on the heart.
-
-function updateTravelers(elapsed, dt) {
-  travelers.forEach((tr, i) => {
-    tr.t = (tr.t + tr.speed * dt) % 1.0;
-
-    const line  = bgLineObjs[tr.lineIdx];
-    const pts   = line.pts;
-    const nSegs = 59;
-    const fIdx  = tr.t * nSegs;
-    const lo    = Math.floor(fIdx);
-    const hi    = Math.min(lo + 1, nSegs);
-    const frac  = fIdx - lo;
-
-    travelerPositions[i * 3]     = pts[lo * 3]     + (pts[hi * 3]     - pts[lo * 3])     * frac;
-    travelerPositions[i * 3 + 1] = pts[lo * 3 + 1] + (pts[hi * 3 + 1] - pts[lo * 3 + 1]) * frac;
-    travelerPositions[i * 3 + 2] = pts[lo * 3 + 2] + (pts[hi * 3 + 2] - pts[lo * 3 + 2]) * frac;
-  });
-  travelerGeo.attributes.position.needsUpdate = true;
-  travelerMat.uniforms.uTime.value = elapsed;
 }
 
 // ============================================================
@@ -1989,7 +1897,7 @@ new FBXLoader().load(
     // Phase 2 (0.8–1.5s): pause — igloo glows & pulses
     // Phase 3 (1.5–2.8s): blocks EXPLODE outward + fade
     // Phase 4 (2.0s): heart scales in with spring ease
-    const tl = gsap.timeline({ delay: 0.3 });
+    const iglooTl = gsap.timeline({ delay: 0.3 });
 
     // Phase 1: blocks start far out and fly into position
     iglooBlocks.forEach((b, i) => {
@@ -1998,7 +1906,7 @@ new FBXLoader().load(
         x: d.x * 12, y: d.y * 8, z: d.z * 12,
       });
       gsap.set(b.material, { opacity: 0 });
-      tl.to(b.position, {
+      iglooTl.to(b.position, {
         x: b.userData.restPos.x,
         y: b.userData.restPos.y,
         z: b.userData.restPos.z,
@@ -2006,11 +1914,11 @@ new FBXLoader().load(
         ease: 'power3.out',
         delay: i * 0.012,
       }, 0);
-      tl.to(b.material, { opacity: 0.72, duration: 0.4, delay: i * 0.012 }, 0);
+      iglooTl.to(b.material, { opacity: 0.72, duration: 0.4, delay: i * 0.012 }, 0);
     });
 
     // Phase 2: glow pulse on all blocks
-    tl.to(iglooBlocks.map(b => b.material), {
+    iglooTl.to(iglooBlocks.map(b => b.material), {
       emissiveIntensity: 0.55,
       duration: 0.35,
       ease: 'power2.inOut',
@@ -2020,13 +1928,13 @@ new FBXLoader().load(
     // Phase 3: explode outward + fade
     iglooBlocks.forEach((b, i) => {
       const d = b.userData.explodeDir;
-      tl.to(b.position, {
+      iglooTl.to(b.position, {
         x: d.x * 9, y: d.y * 7 + 2, z: d.z * 9,
         duration: 0.85,
         ease: 'power2.in',
         delay: i * 0.008,
       }, 1.4);
-      tl.to(b.material, {
+      iglooTl.to(b.material, {
         opacity: 0,
         duration: 0.5,
         delay: i * 0.008,
@@ -2034,10 +1942,10 @@ new FBXLoader().load(
     });
 
     // Phase 4: heart emerges
-    tl.add(() => {
+    iglooTl.add(() => {
       heartGroup.visible = true;
     }, 1.8);
-    tl.to(heartGroup.scale, {
+    iglooTl.to(heartGroup.scale, {
       x: HEART_BASE_SCALE, y: HEART_BASE_SCALE, z: HEART_BASE_SCALE,
       duration: 0.9,
       ease: 'back.out(1.4)',
@@ -2045,10 +1953,10 @@ new FBXLoader().load(
 
     // Phase 5: unlock heartbeat the moment spring-in settles (~2.75s)
     // then clean up igloo geometry
-    tl.add(() => {
+    iglooTl.add(() => {
       iglooAnimating = false;  // heartbeat starts immediately
     }, 2.75);
-    tl.add(() => {
+    iglooTl.add(() => {
       scene.remove(iglooGroup);
       // Free GPU memory — geometry and cloned materials are no longer needed
       blockGeo.dispose();
@@ -2080,7 +1988,7 @@ new FBXLoader().load(
 const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
 const els     = {};
-const TAB_W   = 218;
+const TAB_W   = 234; // must match .a-tab { width: 234px } in CSS
 
 function buildLabels() {
   anatomy.forEach(a => {
@@ -2127,6 +2035,7 @@ function buildLabels() {
 // Cached vectors — reused every frame, zero heap allocation per call
 const _wp       = new THREE.Vector3();
 const _toCamera = new THREE.Vector3();
+const _ndc      = new THREE.Vector3();
 
 function updateLabelPositions() {
   if (!heartReady) return;
@@ -2143,9 +2052,9 @@ function updateLabelPositions() {
     el.dot.classList.toggle('backface', !isFacing);
     el.pname.classList.toggle('backface', !isFacing);
 
-    const ndc = _wp.clone().project(camera);
-    const sx  = (ndc.x  *  0.5 + 0.5) * window.innerWidth;
-    const sy  = (-ndc.y *  0.5 + 0.5) * window.innerHeight;
+    _ndc.copy(_wp).project(camera);
+    const sx  = (_ndc.x  *  0.5 + 0.5) * window.innerWidth;
+    const sy  = (-_ndc.y *  0.5 + 0.5) * window.innerHeight;
 
     el.dot.style.left = `${sx}px`;
     el.dot.style.top  = `${sy}px`;
@@ -2346,6 +2255,7 @@ function setupScroll() {
       });
     },
     onEnter() {
+      inSpiral = true;
       nav.classList.add('visible');
       // Frost dissolve on entry (igloo.inc section transition)
       const fo = document.getElementById('frost-overlay');
@@ -2402,10 +2312,10 @@ function setupScroll() {
 }
 
 // ── SPINNING FACTS RING ────────────────────────────────────────
-const FACTS_SCROLL_PX = window.innerHeight * 10;
+const FACTS_SCROLL_PX = window.innerHeight * (IS_MOBILE ? 5 : 10); // mobile: 5 screens — desktop: 10
 const FACTS_NUM       = 8;
 const FACTS_ANGLE     = 360 / FACTS_NUM;   // 45° per card
-const FACTS_RADIUS    = 340;               // px translateZ for CSS perspective
+const FACTS_RADIUS    = IS_MOBILE ? 220 : 340; // narrower on mobile — adjacent cards stay on-screen
 
 function setupFactsSection() {
   const overlay  = document.getElementById('facts-overlay');
@@ -2455,6 +2365,8 @@ function setupFactsSection() {
       overwrite: 'auto',
     });
     cardEls.forEach((card, i) => card.classList.toggle('active', i === idx));
+    const counterEl = document.getElementById('facts-counter');
+    if (counterEl) counterEl.textContent = `${idx + 1} / ${FACTS_NUM}`;
   }
 
   function animateIn() {
@@ -2480,7 +2392,7 @@ function setupFactsSection() {
     scrub:      0.4,
     onEnter() {
       factsActive = true; inFacts = true;
-      gsap.to(camT, { z: 10.0, duration: 0.8, ease: 'power2.out' });
+      gsap.to(camT, { z: 8.5, duration: 0.8, ease: 'power2.out' });
       // Pre-set card 0 so onUpdate doesn't cancel the slide-in animation
       gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
@@ -2495,7 +2407,7 @@ function setupFactsSection() {
     },
     onEnterBack() {
       factsActive = true; inFacts = true;
-      gsap.to(camT, { z: 10.0, duration: 0.5, ease: 'power2.out' });
+      gsap.to(camT, { z: 8.5, duration: 0.5, ease: 'power2.out' });
       gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
@@ -2512,7 +2424,7 @@ function setupFactsSection() {
       const idx = Math.min(FACTS_NUM - 1, Math.floor(self.progress * FACTS_NUM));
       activateCard(idx);
       // Camera sinks as you descend the staircase — heart drifts up in frame
-      camT.y = THREE.MathUtils.lerp(0.2, -1.8, self.progress);
+      camT.y = THREE.MathUtils.lerp(0.2, -0.8, self.progress);
     },
   });
 }
@@ -2668,12 +2580,17 @@ function synthThud(at, freq, amp, dur) {
 }
 
 // Sound button
-const soundBtn = document.getElementById('sound-btn');
-soundBtn.classList.toggle('active', soundOn);
+const soundBtn  = document.getElementById('sound-btn');
+const soundWave = document.getElementById('sound-icon-wave');
+function updateSoundIcon() {
+  soundBtn.classList.toggle('active', soundOn);
+  soundWave.setAttribute('opacity', soundOn ? '0.7' : '0');
+}
+updateSoundIcon();
 soundBtn.addEventListener('click', () => {
   soundOn = !soundOn;
   localStorage.setItem('heartSoundOn', soundOn);
-  soundBtn.classList.toggle('active', soundOn);
+  updateSoundIcon();
   if (soundOn && !audioCtx) {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     nextBeatTime = audioCtx.currentTime + 0.1;
@@ -2741,11 +2658,11 @@ let chromaVelocity = 0;
   if (activeAnatomyId && heartReady) {
     const aData = anatomy.find(a => a.id === activeAnatomyId);
     if (aData) {
-      // Flash PointLight + glowLight both track active anatomy point
-      const wp = aData.worldOffset.clone().multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
-      wp.add(heartGroup.position);
-      flashLight.position.copy(wp);
-      glowLight.position.lerp(wp, THREE.MathUtils.damp(0, 1, 6, dt));
+      // Flash PointLight + glowLight both track active anatomy point (reuse _wp — no alloc)
+      _wp.copy(aData.worldOffset).multiplyScalar(HEART_BASE_SCALE).applyQuaternion(heartGroup.quaternion);
+      _wp.add(heartGroup.position);
+      flashLight.position.copy(_wp);
+      glowLight.position.lerp(_wp, THREE.MathUtils.damp(0, 1, 6, dt));
 
       // Double-flash pattern: two quick pulses per beat (like a heartbeat)
       const flashPhase = (elapsed * 2.2) % 1.0;
