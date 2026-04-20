@@ -153,7 +153,7 @@
       border-radius: 12px;
       padding: 14px 16px 16px;
       opacity: 0;
-      transform: translateY(10px) scale(0.94);
+      transform: translateX(28px) scale(0.96);   /* default: right-side entry */
       transition: opacity 0.38s cubic-bezier(0.22,1,0.36,1),
                   transform 0.38s cubic-bezier(0.22,1,0.36,1);
       box-shadow:
@@ -162,9 +162,12 @@
         inset 0 1px 0 rgba(255,255,255,0.05);
       pointer-events: none;
     }
+    .a-tab.side-left {
+      transform: translateX(-28px) scale(0.96);  /* left-side entry from left */
+    }
     .a-tab.show {
       opacity: 1;
-      transform: translateY(0) scale(1);
+      transform: translateX(0) scale(1);
     }
     /* Warm red glow along the left border */
     .a-tab::after {
@@ -2036,7 +2039,7 @@ function buildLabels() {
     overlay.appendChild(pname);
 
     const tab = document.createElement('div');
-    tab.className = 'a-tab';
+    tab.className = `a-tab side-${a.side}`;
     tab.id = `tab-${a.id}`;
     tab.style.borderLeftColor = a.color;
     tab.innerHTML = `
@@ -2053,8 +2056,8 @@ function buildLabels() {
     line.id = `ln-${a.id}`;
     line.setAttribute('stroke', a.color);
     line.setAttribute('stroke-width', '1');
-    line.setAttribute('stroke-dasharray', '300');
-    line.setAttribute('stroke-dashoffset', '300');
+    line.setAttribute('stroke-dasharray', '2000');
+    line.setAttribute('stroke-dashoffset', '2000');
     line.setAttribute('fill', 'none');
     line.setAttribute('opacity', '0');
     line.style.filter = 'drop-shadow(0 0 3px ' + a.color + ')';
@@ -2097,22 +2100,26 @@ function updateLabelPositions() {
       : `${sx - pnW - 16}px`;
     el.pname.style.top = `${sy - 10}px`;
 
-    const GAP  = 82;
+    // ── Igloo-style: cards anchor to viewport edges, not near the dot ──
+    const EDGE_MARGIN = 20;
     const tabX = a.side === 'right'
-      ? Math.min(sx + GAP, window.innerWidth  - TAB_W - 18)
-      : Math.max(sx - GAP - TAB_W, 18);
-    const tabY = Math.max(Math.min(sy - 52, window.innerHeight - 140), 16);
+      ? window.innerWidth  - TAB_W - EDGE_MARGIN
+      : EDGE_MARGIN;
+    const tabY = Math.max(Math.min(sy - 52, window.innerHeight - 145), 60);
 
     el.tab.style.left = `${tabX}px`;
     el.tab.style.top  = `${tabY}px`;
 
-    const lx2 = a.side === 'right' ? tabX : tabX + TAB_W;
-    const ly2 = tabY + 34;
-    const mx = (sx + lx2) / 2;
-    const my = (sy + ly2) / 2;
-    const cpx = mx + (ly2 - sy) * 0.25;
-    const cpy = my - (lx2 - sx) * 0.25;
-    el.line.setAttribute('d', `M ${sx} ${sy} Q ${cpx} ${cpy} ${lx2} ${ly2}`);
+    // Connector: horizontal-biased cubic bezier from dot → card edge
+    // cp1 extends 65% of horizontal distance at dot Y (stays flat)
+    // cp2 arrives 85% of horizontal distance at card Y (curves in at the end)
+    const lx2  = a.side === 'right' ? tabX : tabX + TAB_W;
+    const ly2  = tabY + 34;
+    const cp1x = sx + (lx2 - sx) * 0.65;
+    const cp1y = sy;
+    const cp2x = sx + (lx2 - sx) * 0.85;
+    const cp2y = ly2;
+    el.line.setAttribute('d', `M ${sx} ${sy} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${lx2} ${ly2}`);
   });
 }
 
@@ -2129,8 +2136,8 @@ function showLabel(id) {
   setTimeout(() => {
     el.line.setAttribute('opacity', '1');
     gsap.fromTo(el.line,
-      { attr: { 'stroke-dashoffset': '300' } },
-      { attr: { 'stroke-dashoffset': '0' }, duration: 0.45, ease: 'power2.out' }
+      { attr: { 'stroke-dashoffset': '2000' } },
+      { attr: { 'stroke-dashoffset': '0' }, duration: 0.55, ease: 'power2.out' }
     );
   }, 80);
 
@@ -2173,7 +2180,7 @@ function hideLabel(id) {
   el.pname.style.opacity = '0';
   el.tab.classList.remove('show');
   el.line.setAttribute('opacity', '0');
-  el.line.setAttribute('stroke-dashoffset', '300');
+  el.line.setAttribute('stroke-dashoffset', '2000');
 
   // Fade out beacon
   const b = beaconMap[id];
