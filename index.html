@@ -153,21 +153,17 @@
       border-radius: 12px;
       padding: 14px 16px 16px;
       opacity: 0;
-      transform: translateX(28px) scale(0.96);   /* default: right-side entry */
-      transition: opacity 0.38s cubic-bezier(0.22,1,0.36,1),
-                  transform 0.38s cubic-bezier(0.22,1,0.36,1);
+      /* GSAP owns transform exclusively — no CSS transform or transition on transform */
+      transition: opacity 0.38s cubic-bezier(0.22,1,0.36,1);
       box-shadow:
         0 0 0 1px rgba(255,255,255,0.04),
         0 8px 32px rgba(0,0,0,0.55),
         inset 0 1px 0 rgba(255,255,255,0.05);
       pointer-events: none;
     }
-    .a-tab.side-left {
-      transform: translateX(-28px) scale(0.96);  /* left-side entry from left */
-    }
+    /* GSAP drives .a-tab transform (fall-in / slide-out) — no CSS transform rules */
     .a-tab.show {
-      opacity: 1;
-      transform: translateX(0) scale(1);
+      opacity: 1; /* CSS handles opacity; GSAP handles transform */
     }
     /* Warm red glow along the left border */
     .a-tab::after {
@@ -222,9 +218,9 @@
       color: rgba(200, 185, 190, 0.90);
       letter-spacing: 0.01em;
     }
-    /* When backside (hidden anatomy point): fade label */
+    /* When backside (hidden anatomy point): hide — visibility so GSAP opacity isn't overridden */
     .a-tab.backface {
-      opacity: 0 !important;
+      visibility: hidden;
       pointer-events: none;
     }
     .a-dot.backface, .a-part-name.backface {
@@ -1809,6 +1805,7 @@ let iglooAnimating = true; // blocks heartbeatScale from fighting scale tween
 let activeAnatomyId = null;   // which anatomy point is spotlit
 let focusRotY       = 0;      // target heartGroup.rotation.y to face active point
 const beaconMap     = {};     // id → { mesh, light } — created after FBX loads
+const vesselMap     = {};     // id → { curve, tube, tubeMat, signal, sigMat }
 
 // Flash point light at the active anatomy position
 const flashLight = new THREE.PointLight(0xff0022, 0, 2.2);
@@ -1877,6 +1874,51 @@ new FBXLoader().load(
       heartGroup.add(bLight);
 
       beaconMap[a.id] = { mesh: bMesh, light: bLight, mat: bMat };
+    });
+
+    // ── Blood vessel flow paths (one per anatomy point) ───────────
+    // TubeGeometry path from cardiac root → anatomy endpoint.
+    // Signal sphere travels the path on reveal (blood arriving at region).
+    const vesselDefs = {
+      'aorta':            [ new THREE.Vector3(0, 0.22, 0.38), new THREE.Vector3(-0.10, 0.72, 0.37), new THREE.Vector3(-0.22, 1.20, 0.35) ],
+      'pulmonary-artery': [ new THREE.Vector3(0.08, 0.22, 0.32), new THREE.Vector3(0.35, 0.52, 0.31), new THREE.Vector3(0.65, 0.80, 0.30) ],
+      'left-atrium':      [ new THREE.Vector3(-0.08, 0.10, 0.10), new THREE.Vector3(-0.45, 0.16, -0.08), new THREE.Vector3(-0.82, 0.22, -0.25) ],
+      'right-atrium':     [ new THREE.Vector3(0.12, 0.10, 0.22), new THREE.Vector3(0.48, 0.14, 0.26), new THREE.Vector3(0.85, 0.18, 0.30) ],
+      'left-ventricle':   [ new THREE.Vector3(-0.05, -0.15, 0.25), new THREE.Vector3(-0.28, -0.52, 0.25), new THREE.Vector3(-0.55, -0.88, 0.25) ],
+      'right-ventricle':  [ new THREE.Vector3(0.12, -0.15, 0.35), new THREE.Vector3(0.35, -0.44, 0.38), new THREE.Vector3(0.58, -0.72, 0.42) ],
+    };
+    const signalGeo = new THREE.IcosahedronGeometry(0.042, 1);
+
+    anatomy.forEach(a => {
+      const pts   = vesselDefs[a.id];
+      if (!pts) return;
+      const curve = new THREE.CatmullRomCurve3(pts);
+
+      const tubeMat = new THREE.MeshBasicMaterial({
+        color:       new THREE.Color(a.color),
+        transparent: true,
+        opacity:     0,
+        depthWrite:  false,
+      });
+      const tube = new THREE.Mesh(
+        new THREE.TubeGeometry(curve, 20, 0.018, 6, false),
+        tubeMat
+      );
+      tube.renderOrder = 2;
+      heartGroup.add(tube);
+
+      const sigMat = new THREE.MeshBasicMaterial({
+        color:       new THREE.Color(a.color),
+        transparent: true,
+        opacity:     0,
+        depthWrite:  false,
+      });
+      const signal = new THREE.Mesh(signalGeo, sigMat);
+      signal.position.copy(pts[0]);
+      signal.renderOrder = 3;
+      heartGroup.add(signal);
+
+      vesselMap[a.id] = { curve, tube, tubeMat, signal, sigMat };
     });
 
     buildLabels();
@@ -2128,48 +2170,69 @@ function showLabel(id) {
   if (!el || el.active) return;
   el.active = true;
 
-  // ── Staggered reveal: dot → line (80ms) → card (160ms) ──────
-  // 1. DOT — immediate pop
+  const aData = anatomy.find(a => a.id === id);
+
+  // ── 0. VESSEL SIGNAL — blood travels from cardiac root → anatomy endpoint ──
+  // Fires immediately — arrives at dot just as dot pops (0.5s travel)
+  const v = vesselMap[id];
+  if (v) {
+    gsap.to(v.tubeMat, { opacity: 0.55, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
+    gsap.to(v.sigMat,  { opacity: 1.0,  duration: 0.15, ease: 'power2.out', overwrite: 'auto' });
+    // Signal sphere travels from first point to last point of the vessel curve
+    const tProxy = { t: 0 };
+    const endPt  = v.curve.getPoint(1);
+    gsap.to(tProxy, {
+      t: 1, duration: 0.50, ease: 'power2.inOut', overwrite: 'auto',
+      onUpdate() {
+        v.curve.getPoint(tProxy.t, v.signal.position);
+      },
+      onComplete() {
+        // Sphere absorbed into beacon — scales down and vanishes
+        gsap.to(v.sigMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
+      },
+    });
+  }
+
+  // ── 1. DOT — immediate pop ──────────────────────────────────
   el.dot.style.opacity = '1';
 
-  // 2. LINE — 80ms delay, solid draw from dot to card
+  // ── 2. LINE — 80ms delay, solid draw from dot to card ───────
   setTimeout(() => {
+    if (!el.active) return;
     el.line.setAttribute('opacity', '1');
     gsap.fromTo(el.line,
       { attr: { 'stroke-dashoffset': '2000' } },
-      { attr: { 'stroke-dashoffset': '0' }, duration: 0.55, ease: 'power2.out' }
+      { attr: { 'stroke-dashoffset': '0' }, duration: 0.55, ease: 'power2.out', overwrite: 'auto' }
     );
   }, 80);
 
-  // 3. CARD — 160ms delay
+  // ── 3. CARD — 160ms delay, falls from top with physics ──────
   setTimeout(() => {
+    if (!el.active) return;
     el.tab.classList.add('show');
-    // igloo.inc letter-scramble: decode the anatomy name on reveal
     const nameEl = el.tab.querySelector('.a-tab-name');
-    const aData2 = anatomy.find(a => a.id === id);
-    if (nameEl && aData2) scrambleText(nameEl, aData2.name, 0.65);
+    if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
+    // Falling entry: drop in from above with slight side-lean
+    const fromX = aData?.side === 'right' ?  32 : -32;
+    const fromR = aData?.side === 'right' ?   4 :  -4;
+    gsap.fromTo(el.tab,
+      { y: -90, x: fromX, rotation: fromR, scale: 0.93 },
+      { y:   0, x:     0, rotation:     0, scale:    1, duration: 0.52, ease: 'power3.out', overwrite: 'auto' }
+    );
   }, 160);
-
-  const aData = anatomy.find(a => a.id === id);
 
   // ── Anatomy Focus System ───────────────────────────────────
   if (aData) {
-    // Rotate heart to present this anatomy point face-on to camera
-    // atan2(-x, z) gives the Y rotation that maximises world-Z for the local offset
     focusRotY     = Math.atan2(-aData.worldOffset.x, aData.worldOffset.z);
     activeAnatomyId = id;
-    sonarT        = 0; // restart sonar ring
+    sonarT        = 0;
 
-    // Dim heart + SSS shell proportionally — active beacon pops against dim surface
-    // sssMat base is 0.22, proportional target: 0.38 * 0.22 = 0.08
-    gsap.to(heartMat, { opacity: 0.38, duration: 0.35, ease: 'power2.out' });
-    gsap.to(sssMat,   { opacity: 0.08, duration: 0.35, ease: 'power2.out' });
-    // Tighten glowLight to focused region only
-    gsap.to(glowLight, { distance: 1.8, duration: 0.35, ease: 'power2.out' });
+    gsap.to(heartMat, { opacity: 0.38, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
+    gsap.to(sssMat,   { opacity: 0.08, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
+    gsap.to(glowLight, { distance: 1.8, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
 
-    // Fade in beacon
     const b = beaconMap[id];
-    if (b) gsap.to(b.mat, { opacity: 1, duration: 0.35, ease: 'power2.out' });
+    if (b) gsap.to(b.mat, { opacity: 1, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
   }
 }
 function hideLabel(id) {
@@ -2178,9 +2241,25 @@ function hideLabel(id) {
   el.active = false;
   el.dot.style.opacity   = '0';
   el.pname.style.opacity = '0';
-  el.tab.classList.remove('show');
+
+  const aData   = anatomy.find(a => a.id === id);
+  const exitX   = aData?.side === 'right' ?  35 : -35;
+  const exitRot = aData?.side === 'right' ?   2 :  -2;
+
+  // Card exits toward its edge (opposite direction to entry fall)
+  gsap.to(el.tab, { x: exitX, rotation: exitRot, opacity: 0, duration: 0.26, ease: 'power2.in', overwrite: 'auto',
+    onComplete() { el.tab.classList.remove('show'); gsap.set(el.tab, { clearProps: 'x,y,rotation,scale,opacity' }); }
+  });
+
   el.line.setAttribute('opacity', '0');
   el.line.setAttribute('stroke-dashoffset', '2000');
+
+  // Fade out vessel tube
+  const v = vesselMap[id];
+  if (v) {
+    gsap.to(v.tubeMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
+    gsap.to(v.sigMat,  { opacity: 0, duration: 0.15, ease: 'power2.in', overwrite: 'auto' });
+  }
 
   // Fade out beacon
   const b = beaconMap[id];
@@ -2296,12 +2375,31 @@ function setupScroll() {
       scrollProg = self.progress;
       inSpiral   = true;
 
+      // ── Progressive camera descent: y falls 0.0 → -0.62 across the anatomy journey ──
+      // Viewer descends from aorta (top) to ventricles (bottom) — matches anatomy anatomy
+      if (!inFacts) {
+        camT.y = THREE.MathUtils.lerp(0.0, -0.62, scrollProg);
+      }
+
       anatomy.forEach((a, i) => {
         const start = (i / N);
         const end   = start + DWELL;
         if (scrollProg >= start && scrollProg < end) {
           showLabel(a.id);
           setActivePDot(i);
+
+          // ── Heart pre-rotation: begin rotating toward NEXT anatomy point ──
+          // Fires when 80% through current dwell → smooth handoff, no snap on transition
+          if (heartReady && i + 1 < N) {
+            const localProg = (scrollProg - start) / DWELL;
+            if (localProg >= 0.80) {
+              const nextA   = anatomy[i + 1];
+              const thisRot = Math.atan2(-a.worldOffset.x, a.worldOffset.z);
+              const nextRot = Math.atan2(-nextA.worldOffset.x, nextA.worldOffset.z);
+              const blend   = (localProg - 0.80) / 0.20; // 0..1 over final 20% of dwell
+              focusRotY     = THREE.MathUtils.lerp(thisRot, nextRot, blend);
+            }
+          }
         } else {
           hideLabel(a.id);
         }
