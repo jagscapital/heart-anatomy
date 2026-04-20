@@ -506,29 +506,18 @@
     .ow1, .ow2 { display: inline-block; }
 
     /* ─────────────────────────────────────────────
-       ANATOMY CARDS  — staged entrance + improved type
+       ANATOMY CARDS  — staged text entrance (opacity/translateY only)
+       Width/padding/color overridden by igloo section below
     ───────────────────────────────────────────── */
-    .a-tab {
-      width: 234px !important;
-      padding: 14px 17px 16px !important;
-    }
     .a-tab-name {
-      font-size: 9px !important;
-      font-weight: 800 !important;
-      letter-spacing: 0.16em !important;
-      margin-bottom: 9px !important;
       opacity: 0;
-      transform: translateY(5px);
-      transition: opacity 0.4s ease 0.1s, transform 0.4s ease 0.1s;
+      transform: translateY(4px);
+      transition: opacity 0.35s ease 0.08s, transform 0.35s ease 0.08s;
     }
     .a-tab-text {
-      font-size: 13.5px !important;
-      line-height: 1.72 !important;
-      color: rgba(255,255,255,0.78) !important;
-      letter-spacing: 0.005em !important;
       opacity: 0;
-      transform: translateY(5px);
-      transition: opacity 0.45s ease 0.22s, transform 0.45s ease 0.22s;
+      transform: translateY(4px);
+      transition: opacity 0.40s ease 0.18s, transform 0.40s ease 0.18s;
     }
     .a-tab.show .a-tab-name,
     .a-tab.show .a-tab-text {
@@ -653,21 +642,60 @@
       to { stroke-dashoffset: 0; }
     }
 
-    /* ANATOMY CARDS — igloo-quality deep-heart glassmorphism */
+    /* ── ANATOMY CARDS — igloo.inc-precision glassmorphism ─────── */
+    /* Near-invisible panel: scene bleeds fully through, text floats in space */
     .a-tab {
-      background: rgba(8, 2, 10, 0.65) !important;
-      backdrop-filter: blur(28px) saturate(1.8) !important;
-      -webkit-backdrop-filter: blur(28px) saturate(1.8) !important;
-      border-left-width: 2px !important;
+      background: rgba(5, 3, 10, 0.10) !important;
+      backdrop-filter: blur(42px) saturate(2.4) !important;
+      -webkit-backdrop-filter: blur(42px) saturate(2.4) !important;
+      border: 1px solid rgba(255,255,255,0.09) !important;
+      border-left-width: 1px !important;   /* neutralise red left accent */
+      border-radius: 6px !important;
+      width: 200px !important;
+      padding: 12px 14px 14px !important;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.03),
+                  0 16px 48px rgba(0,0,0,0.50) !important;
     }
-    /* Warm red highlight flare at top-left of card */
-    .a-tab::before {
-      content: '';
-      position: absolute;
-      top: 0; left: 0; right: 0;
-      height: 1px;
-      background: linear-gradient(to right, transparent, rgba(232,35,58,0.18), transparent);
-      pointer-events: none;
+    /* Remove all decorative chrome — igloo uses zero ornamentation */
+    .a-tab::after  { display: none !important; }  /* left red glow strip */
+    .a-tab::before { display: none !important; }  /* top gradient flare */
+    /* Beating dot inside header: gone (redundant with beacon on 3D model) */
+    .a-tab-pulse { display: none !important; }
+    /* Header: no gap since pulse is gone */
+    .a-tab-header { gap: 0 !important; margin-bottom: 4px !important; }
+    /* Name: muted, technical — NOT red */
+    .a-tab-name {
+      font-size: 8px !important;
+      font-weight: 700 !important;
+      letter-spacing: 0.24em !important;
+      color: rgba(255,255,255,0.42) !important;
+      margin-bottom: 6px !important;
+    }
+    /* Divider: near-invisible ruled line */
+    .a-tab-divider {
+      background: rgba(255,255,255,0.07) !important;
+      margin-bottom: 8px !important;
+    }
+    /* Body text: readable white, slightly tighter */
+    .a-tab-text {
+      font-size: 12px !important;
+      line-height: 1.65 !important;
+      color: rgba(255,255,255,0.70) !important;
+    }
+    /* Dot: 4px precision marker, single subtle ring */
+    .a-dot {
+      width:  4px !important;
+      height: 4px !important;
+      box-shadow: 0 0 4px rgba(232,35,58,1.0) !important;
+    }
+    .a-dot::before { display: none !important; }  /* remove echo ring */
+    .a-dot::after {
+      animation: dot-pulse-igloo 2.4s ease-out infinite !important;
+      border-color: rgba(232,35,58,0.30) !important;
+    }
+    @keyframes dot-pulse-igloo {
+      0%   { transform: scale(1);   opacity: 0.50; }
+      100% { transform: scale(1.8); opacity: 0; }
     }
 
     /* Part-name label is redundant with card header — hide it */
@@ -2065,7 +2093,7 @@ new FBXLoader().load(
 const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
 const els     = {};
-const TAB_W   = 234; // must match .a-tab { width: 234px } in CSS
+const TAB_W   = 200; // must match .a-tab { width: 200px } in CSS
 
 function buildLabels() {
   anatomy.forEach(a => {
@@ -2083,7 +2111,6 @@ function buildLabels() {
     const tab = document.createElement('div');
     tab.className = `a-tab side-${a.side}`;
     tab.id = `tab-${a.id}`;
-    tab.style.borderLeftColor = a.color;
     tab.innerHTML = `
       <div class="a-tab-header">
         <span class="a-tab-pulse"></span>
@@ -2096,13 +2123,13 @@ function buildLabels() {
 
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     line.id = `ln-${a.id}`;
-    line.setAttribute('stroke', a.color);
-    line.setAttribute('stroke-width', '1');
+    line.setAttribute('stroke', 'rgba(255,255,255,0.38)');
+    line.setAttribute('stroke-width', '0.6');
     line.setAttribute('stroke-dasharray', '2000');
     line.setAttribute('stroke-dashoffset', '2000');
     line.setAttribute('fill', 'none');
     line.setAttribute('opacity', '0');
-    line.style.filter = 'drop-shadow(0 0 3px ' + a.color + ')';
+    line.style.filter = 'drop-shadow(0 0 2px rgba(255,255,255,0.15))';
     svgEl.appendChild(line);
 
     els[a.id] = { dot, pname, tab, line, active: false };
@@ -2152,16 +2179,13 @@ function updateLabelPositions() {
     el.tab.style.left = `${tabX}px`;
     el.tab.style.top  = `${tabY}px`;
 
-    // Connector: horizontal-biased cubic bezier from dot → card edge
-    // cp1 extends 65% of horizontal distance at dot Y (stays flat)
-    // cp2 arrives 85% of horizontal distance at card Y (curves in at the end)
-    const lx2  = a.side === 'right' ? tabX : tabX + TAB_W;
-    const ly2  = tabY + 34;
-    const cp1x = sx + (lx2 - sx) * 0.65;
-    const cp1y = sy;
-    const cp2x = sx + (lx2 - sx) * 0.85;
-    const cp2y = ly2;
-    el.line.setAttribute('d', `M ${sx} ${sy} C ${cp1x} ${cp1y} ${cp2x} ${cp2y} ${lx2} ${ly2}`);
+    // ── Igloo-style L-shaped elbow connector ────────────────────
+    // Segment 1: horizontal from dot → card's inner X edge (at dot Y)
+    // Segment 2: vertical drop from that X → card header midpoint Y
+    // Reads as a precision engineering diagram, not an organic curve.
+    const lx2 = a.side === 'right' ? tabX : tabX + TAB_W;
+    const ly2 = tabY + 22; // card header midpoint (12px padding + ~10px name height)
+    el.line.setAttribute('d', `M ${sx} ${sy} L ${lx2} ${sy} L ${lx2} ${ly2}`);
   });
 }
 
