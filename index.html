@@ -565,6 +565,20 @@
        IGLOO FEATURES  (igloo.inc-quality upgrades)
     ───────────────────────────────────────────── */
 
+    /* ── ENVIRONMENT ATMOSPHERE OVERLAY (Igloo environment switching) ──
+       Each anatomy segment has its own atmospheric color — this layer
+       continuously crossfades between them as the user descends.
+       z-index 2: above the Three.js canvas, below the label overlay.
+       background-color animates via JS on each scroll update. */
+    #env-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background-color: transparent;
+      /* CSS transition not used — JS lerps every scroll frame for continuous morphing */
+    }
+
     /* FROST OVERLAY — section dissolve between anatomy stops */
     /* PULSE DISSOLVE — warm red darkening (heart biological transition) */
     #frost-overlay {
@@ -905,6 +919,10 @@
 
 <!-- ── Frost overlay (igloo section dissolve) ── -->
 <div id="frost-overlay"></div>
+
+<!-- ── Environment atmosphere overlay (Igloo segment switching) ── -->
+<!-- Each anatomy segment crossfades this to its unique atmospheric color -->
+<div id="env-overlay"></div>
 
 <!-- ── Ice vignette (cold blue edge) ─────────── -->
 <div id="ice-vignette"></div>
@@ -1560,6 +1578,13 @@ const anatomy = [
     worldOffset: new THREE.Vector3(-0.22, 1.20, 0.35),
     color: '#e8233a',
     side: 'left',
+    // Active Theory — camera position when descending past this segment
+    camPos: { x: -0.35, y: 1.40, z: 5.6 },
+    // Igloo — environment atmosphere for this segment
+    // overlayRgba: [r, g, b, a] — background atmosphere color
+    // rimColor: hex — rim light color
+    // rimInt: float — rim light intensity
+    env: { overlayRgba: [215, 15, 35, 0.14], rimColor: 0xff2244, rimInt: 2.4 },
   },
   {
     id: 'pulmonary-artery',
@@ -1568,6 +1593,9 @@ const anatomy = [
     worldOffset: new THREE.Vector3(0.65, 0.80, 0.30),
     color: '#c92030',
     side: 'right',
+    // Venous deoxygenated — exits upper-right, heading to lungs
+    camPos: { x: 0.55, y: 0.82, z: 5.5 },
+    env: { overlayRgba: [88, 4, 80, 0.16], rimColor: 0xaa1080, rimInt: 2.0 },
   },
   {
     id: 'left-atrium',
@@ -1576,6 +1604,9 @@ const anatomy = [
     worldOffset: new THREE.Vector3(-0.82, 0.22, -0.25),
     color: '#e03040',
     side: 'left',
+    // Renewal — freshly oxygenated, posterior-left, thin walls
+    camPos: { x: -0.60, y: 0.18, z: 5.8 },
+    env: { overlayRgba: [208, 44, 68, 0.12], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
     id: 'right-atrium',
@@ -1584,6 +1615,9 @@ const anatomy = [
     worldOffset: new THREE.Vector3(0.85, 0.18, 0.30),
     color: '#b01c2a',
     side: 'right',
+    // Electric — SA node origin (heart's pacemaker), upper-right
+    camPos: { x: 0.60, y: 0.06, z: 5.4 },
+    env: { overlayRgba: [18, 8, 155, 0.15], rimColor: 0x2211cc, rimInt: 1.8 },
   },
   {
     id: 'left-ventricle',
@@ -1592,6 +1626,9 @@ const anatomy = [
     worldOffset: new THREE.Vector3(-0.55, -0.88, 0.25),
     color: '#d52033',
     side: 'left',
+    // Maximum force — thickest walls, systemic pressure, apex lower-left
+    camPos: { x: -0.45, y: -0.95, z: 5.1 },
+    env: { overlayRgba: [195, 5, 8, 0.20], rimColor: 0xff0011, rimInt: 3.4 },
   },
   {
     id: 'right-ventricle',
@@ -1600,6 +1637,9 @@ const anatomy = [
     worldOffset: new THREE.Vector3(0.58, -0.72, 0.42),
     color: '#a8182a',
     side: 'right',
+    // Moderate force — crescent-shaped, wraps LV anteriorly
+    camPos: { x: 0.50, y: -0.80, z: 5.4 },
+    env: { overlayRgba: [162, 22, 12, 0.15], rimColor: 0xdd1122, rimInt: 2.6 },
   },
 ];
 
@@ -2401,10 +2441,29 @@ function setupScroll() {
       scrollProg = self.progress;
       inSpiral   = true;
 
-      // ── Progressive camera descent: y falls 0.0 → -0.62 across the anatomy journey ──
-      // Viewer descends from aorta (top) to ventricles (bottom) — matches anatomy anatomy
+      // ── Igloo: continuous environment crossfade between adjacent segments ──
+      // Compute which segment pair we're between and blend their atmosphere colors.
+      // This creates the "world is evolving around me" feel — not discrete jumps,
+      // but a living gradient that morphs as you descend.
       if (!inFacts) {
-        camT.y = THREE.MathUtils.lerp(0.0, -0.62, scrollProg);
+        const envIdx  = Math.min(N - 1, Math.floor(scrollProg * N));
+        const envFrac = (scrollProg * N) - envIdx;
+        const envNext = Math.min(N - 1, envIdx + 1);
+        const t       = envFrac * envFrac * (3.0 - 2.0 * envFrac); // smoothstep
+
+        const [r1, g1, b1, a1] = anatomy[envIdx].env.overlayRgba;
+        const [r2, g2, b2, a2] = anatomy[envNext].env.overlayRgba;
+        const r = (r1 + (r2 - r1) * t) | 0;
+        const g = (g1 + (g2 - g1) * t) | 0;
+        const b = (b1 + (b2 - b1) * t) | 0;
+        const a = (a1 + (a2 - a1) * t).toFixed(3);
+        envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
+
+        // Rim light color + intensity lerp per segment (pre-allocated — zero heap alloc)
+        _rimC1.setHex(anatomy[envIdx].env.rimColor);
+        _rimC2.setHex(anatomy[envNext].env.rimColor);
+        rimLight.color.copy(_rimC1).lerp(_rimC2, t);
+        rimLight.intensity = anatomy[envIdx].env.rimInt + (anatomy[envNext].env.rimInt - anatomy[envIdx].env.rimInt) * t;
       }
 
       anatomy.forEach((a, i) => {
@@ -2434,24 +2493,49 @@ function setupScroll() {
     onEnter() {
       inSpiral = true;
       nav.classList.add('visible');
-      // Frost dissolve on entry (igloo.inc section transition)
+      // Frost dissolve on entry — Igloo section-level transition
       const fo = document.getElementById('frost-overlay');
       fo.classList.add('active');
       setTimeout(() => fo.classList.remove('active'), 500);
-      gsap.timeline()
-        .to(camT, { z: 4.5, duration: 0.35, ease: 'power3.in' })
-        .to(camT, { z: 7.2, duration: 0.6,  ease: 'power3.out' });
+      // Snap camT to first segment's position so descent starts cleanly
+      // (avoids the camera snapping from hero z=6.8 to a random orbit point)
+      const first = anatomy[0].camPos;
+      camT.x = first.x;
+      camT.y = first.y;
+      camT.z = first.z;
+      // Start first segment's env atmosphere immediately
+      const [r, g, b, a] = anatomy[0].env.overlayRgba;
+      envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
+      rimLight.color.setHex(anatomy[0].env.rimColor);
+      rimLight.intensity = anatomy[0].env.rimInt;
     },
     onLeave() {
-      inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
+      inSpiral = false;
+      hideAllLabels();
+      nav.classList.remove('visible');
+      // Clear environment atmosphere
+      envOverlay.style.backgroundColor = 'transparent';
+      rimLight.color.setHex(0xff1133);
+      rimLight.intensity = 1.8;
       camT.z = 9.5; camT.y = 0.4;
       setTimeout(() => { if (!inSpiral && !inFacts) { camT.z = 7.5; camT.y = 0.0; } }, 800);
     },
     onLeaveBack() {
-      inSpiral = false; hideAllLabels(); nav.classList.remove('visible');
+      inSpiral = false;
+      hideAllLabels();
+      nav.classList.remove('visible');
+      // Clear environment atmosphere on backward exit
+      envOverlay.style.backgroundColor = 'transparent';
+      rimLight.color.setHex(0xff1133);
+      rimLight.intensity = 1.8;
     },
     onEnterBack() {
       nav.classList.add('visible');
+      // Snap camT to last segment when re-entering from below
+      const last = anatomy[N - 1].camPos;
+      camT.x = last.x;
+      camT.y = last.y;
+      camT.z = last.z;
     },
   });
 
@@ -2652,17 +2736,38 @@ function setupHeroEntrance() {
 // ============================================================
 //  CAMERA  (THREE.MathUtils.damp — frame-rate independent)
 // ============================================================
-const camT = { x:0, y:0, z:7.5 };
+const camT      = { x:0, y:0, z:7.5 };
+const camLookAt = new THREE.Vector3(0, 0, 0); // damped look-at target — tracks active anatomy Y
 const CAM_LAMBDA = 6.0;
 
-function spiralCamera(p) {
-  const theta  = p * Math.PI * 4;
-  const wobble = Math.sin(p * Math.PI * 7) * 0.18;
-  const radius = 6.5 - p * 2.3 + wobble;
-  const phi    = Math.sin(p * Math.PI * 2) * 0.55;
-  camT.x = Math.sin(theta) * radius * Math.cos(phi);
-  camT.y = Math.sin(phi)   * radius + (p * -0.1);
-  camT.z = Math.cos(theta) * radius;
+// Igloo env overlay element — referenced once, reused every scroll frame
+const envOverlay = document.getElementById('env-overlay');
+// Pre-allocated colors for rim light lerp — zero heap alloc per scroll frame
+const _rimC1 = new THREE.Color();
+const _rimC2 = new THREE.Color();
+
+// ── Active Theory: descend vertically past each anatomy segment ────────────
+// Camera travels from the aorta (Y≈+1.4, top of heart) down through the
+// chambers to the ventricles (Y≈-0.95, apex). Each segment's camPos defines
+// where the camera sits to frame that part. Between segments, smoothstep
+// interpolation gives a weighted, weighted feel — not a jarring snap.
+//
+// This is NOT an orbit. The camera moves linearly through space, encountering
+// each anatomy landmark naturally as it descends.
+function descentCamera(p) {
+  const segIdx  = Math.min(N - 1, Math.floor(p * N));
+  const segFrac = (p * N) - segIdx;                      // 0..1 within current segment
+  const nextIdx = Math.min(N - 1, segIdx + 1);
+
+  const curr = anatomy[segIdx].camPos;
+  const next = anatomy[nextIdx].camPos;
+
+  // Smoothstep — weighted ease into each new segment position
+  const t = segFrac * segFrac * (3.0 - 2.0 * segFrac);
+
+  camT.x = curr.x + (next.x - curr.x) * t;
+  camT.y = curr.y + (next.y - curr.y) * t;
+  camT.z = curr.z + (next.z - curr.z) * t;
 }
 
 // ============================================================
@@ -2814,13 +2919,16 @@ let chromaVelocity = 0;
     if (!iglooAnimating) heartbeatScale(dt);
   }
 
-  // Camera target
+  // Camera target — Active Theory descent path drives camT when in spiral
   if (inSpiral) {
-    spiralCamera(scrollProg);
-    // Banking roll during spiral
-    const theta = scrollProg * Math.PI * 4;
-    const bankTarget = Math.sin(theta * 0.5) * 0.08;
-    heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, bankTarget, 3.5, dt);
+    descentCamera(scrollProg);
+
+    // ── Subtle lean: heart tilts gently in the direction of camera X offset ──
+    // Replaces the orbital banking roll — creates dimensionality without spiraling.
+    // As camera drifts left (negative X) to frame left-side anatomy, the heart
+    // leans slightly right, giving the impression of depth and spatial separation.
+    const leanTarget = (camT.x / 5.5) * 0.06;
+    heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, leanTarget, 3.0, dt);
 
     // ── Anatomy Focus: rotate heart to face active anatomy point ──
     if (activeAnatomyId) {
@@ -2829,6 +2937,19 @@ let chromaVelocity = 0;
       const targetRotY = focusRotY + oscillate;
       heartGroup.rotation.y = THREE.MathUtils.damp(heartGroup.rotation.y, targetRotY, 1.8, dt);
     }
+  }
+
+  // ── Active Theory camLookAt: gaze tracks the active anatomy Y position ──
+  // Instead of always looking at (0,0,0), the camera looks slightly toward
+  // whatever anatomy point is being featured — like a director tracking a subject.
+  if (inSpiral && activeAnatomyId) {
+    const aData = anatomy.find(a => a.id === activeAnatomyId);
+    if (aData) {
+      const targetLookY = aData.worldOffset.y * HEART_BASE_SCALE * 0.55;
+      camLookAt.y = THREE.MathUtils.damp(camLookAt.y, targetLookY, 2.5, dt);
+    }
+  } else {
+    camLookAt.y = THREE.MathUtils.damp(camLookAt.y, 0, 3.0, dt);
   }
 
   // ── Anatomy Flash + Sonar + Beacon ──────────────────────────
@@ -2873,7 +2994,8 @@ let chromaVelocity = 0;
   camera.position.x = THREE.MathUtils.damp(camera.position.x, camT.x, CAM_LAMBDA, dt);
   camera.position.y = THREE.MathUtils.damp(camera.position.y, camT.y, CAM_LAMBDA, dt);
   camera.position.z = THREE.MathUtils.damp(camera.position.z, camT.z, CAM_LAMBDA, dt);
-  camera.lookAt(0, 0, 0);
+  // Active Theory: camera gaze tracks active anatomy Y rather than always center (0,0,0)
+  camera.lookAt(camLookAt);
 
   // ── Lung breathe animation ──────────────────────────────────
   // Pure uniform inflate/deflate — whole lung expands like a balloon.
