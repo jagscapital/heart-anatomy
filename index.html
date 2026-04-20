@@ -103,17 +103,29 @@
       transition: opacity 0.45s ease;
       box-shadow: 0 0 6px rgba(232,35,58,0.8);
     }
+    .a-dot::before {
+      content: '';
+      position: absolute;
+      inset: -5px;
+      border-radius: 50%;
+      border: 1px solid rgba(232,35,58,0.3);
+      animation: dot-pulse-echo 2.8s ease-out 0.9s infinite;
+    }
     .a-dot::after {
       content: '';
       position: absolute;
       inset: -5px;
       border-radius: 50%;
       border: 1px solid rgba(232,35,58,0.5);
-      animation: dot-pulse 2.0s ease-out infinite;
+      animation: dot-pulse 1.8s ease-out infinite;
     }
     @keyframes dot-pulse {
-      0%   { transform: scale(1);    opacity: 0.6; }
-      100% { transform: scale(1.35); opacity: 0; }
+      0%   { transform: scale(1);   opacity: 0.6; }
+      100% { transform: scale(2.5); opacity: 0; }
+    }
+    @keyframes dot-pulse-echo {
+      0%   { transform: scale(1);   opacity: 0.35; }
+      100% { transform: scale(4.0); opacity: 0; }
     }
 
     /* Part name (Title Case, near the dot) */
@@ -142,8 +154,8 @@
       padding: 14px 16px 16px;
       opacity: 0;
       transform: translateY(10px) scale(0.94);
-      transition: opacity 0.50s cubic-bezier(0.22,1,0.36,1),
-                  transform 0.50s cubic-bezier(0.22,1,0.36,1);
+      transition: opacity 0.38s cubic-bezier(0.22,1,0.36,1),
+                  transform 0.38s cubic-bezier(0.22,1,0.36,1);
       box-shadow:
         0 0 0 1px rgba(255,255,255,0.04),
         0 8px 32px rgba(0,0,0,0.55),
@@ -554,7 +566,7 @@
     .p-dot-connector.filled::after { height: 100%; }
 
     @media (prefers-reduced-motion: reduce) {
-      .a-dot::after { animation: none; }
+      .a-dot::before, .a-dot::after { animation: none; }
       .bl { animation: none; }
       .scroll-cue { animation: none; }
       .load-icon { animation: none; }
@@ -644,9 +656,9 @@
 
     /* ANATOMY CARDS — igloo-quality deep-heart glassmorphism */
     .a-tab {
-      background: rgba(8, 2, 10, 0.93) !important;
-      backdrop-filter: blur(18px) saturate(1.6) !important;
-      -webkit-backdrop-filter: blur(18px) saturate(1.6) !important;
+      background: rgba(8, 2, 10, 0.65) !important;
+      backdrop-filter: blur(28px) saturate(1.8) !important;
+      -webkit-backdrop-filter: blur(28px) saturate(1.8) !important;
       border-left-width: 2px !important;
     }
     /* Warm red highlight flare at top-left of card */
@@ -658,6 +670,9 @@
       background: linear-gradient(to right, transparent, rgba(232,35,58,0.18), transparent);
       pointer-events: none;
     }
+
+    /* Part-name label is redundant with card header — hide it */
+    .a-part-name { display: none !important; }
 
     /* LABEL SCRAMBLE — character cycles before settling */
     .scrambling { font-variant-numeric: tabular-nums; }
@@ -731,15 +746,32 @@
       -webkit-backface-visibility: hidden;
       will-change: transform, opacity;
       opacity: 0.22;
-      transition: border-color 0.35s ease, opacity 0.35s ease;
+      filter: blur(0.5px);
+      transition: border-color 0.35s ease, opacity 0.35s ease, filter 0.35s ease, box-shadow 0.35s ease;
       pointer-events: none;
     }
     .fact-card.active {
       opacity: 1;
       border-color: rgba(255,255,255,0.28);
+      box-shadow: 0 0 35px rgba(232,35,58,0.30), 0 8px 32px rgba(0,0,0,0.55);
+      filter: none;
     }
-    .fact-card.pro { border-left: 2px solid rgba(79,195,247,0.50); }
-    .fact-card.con { border-right: 2px solid rgba(255,107,107,0.50); }
+    .fact-card.pro { border-color: rgba(79,195,247,0.20); }
+    .fact-card.con { border-color: rgba(255,107,107,0.20); }
+    .fact-card.pro::before, .fact-card.con::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 12%; right: 12%;
+      height: 1px;
+      border-radius: 1px;
+      pointer-events: none;
+    }
+    .fact-card.pro::before {
+      background: linear-gradient(to right, transparent, rgba(79,195,247,0.70), transparent);
+    }
+    .fact-card.con::before {
+      background: linear-gradient(to right, transparent, rgba(255,107,107,0.70), transparent);
+    }
 
     .fact-card-tag {
       font-family: 'Space Grotesk', sans-serif;
@@ -762,7 +794,7 @@
     .fact-card-body {
       font-family: 'Space Grotesk', sans-serif;
       font-size: 11px;
-      color: rgba(255,255,255,0.55);
+      color: rgba(255,255,255,0.78);
       line-height: 1.55;
       margin: 0;
     }
@@ -781,12 +813,12 @@
     }
     #facts-heading h2 {
       font-family: 'Space Grotesk', sans-serif;
-      font-size: clamp(16px, 2vw, 24px);
-      font-weight: 700;
-      letter-spacing: 0.16em;
+      font-size: clamp(24px, 3.5vw, 42px);
+      font-weight: 800;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: rgba(255,255,255,0.75);
-      margin: 0 0 4px 0;
+      color: rgba(255,255,255,0.85);
+      margin: 0 0 6px 0;
     }
     #facts-heading p {
       font-family: 'Space Grotesk', sans-serif;
@@ -2021,11 +2053,11 @@ function buildLabels() {
     line.id = `ln-${a.id}`;
     line.setAttribute('stroke', a.color);
     line.setAttribute('stroke-width', '1');
-    line.setAttribute('stroke-dasharray', '4 5');
+    line.setAttribute('stroke-dasharray', '300');
+    line.setAttribute('stroke-dashoffset', '300');
     line.setAttribute('fill', 'none');
     line.setAttribute('opacity', '0');
     line.style.filter = 'drop-shadow(0 0 3px ' + a.color + ')';
-    line.style.transition = 'opacity 0.4s ease';
     svgEl.appendChild(line);
 
     els[a.id] = { dot, pname, tab, line, active: false };
@@ -2088,17 +2120,30 @@ function showLabel(id) {
   const el = els[id];
   if (!el || el.active) return;
   el.active = true;
-  el.dot.style.opacity   = '1';
-  el.pname.style.opacity = '1';
-  el.tab.classList.add('show');
 
-  // igloo.inc letter-scramble: decode the anatomy name on reveal
-  const nameEl = el.tab.querySelector('.a-tab-name');
-  const aData  = anatomy.find(a => a.id === id);
-  if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
-  if (aData) scrambleText(el.pname, aData.name, 0.50);
+  // ── Staggered reveal: dot → line (80ms) → card (160ms) ──────
+  // 1. DOT — immediate pop
+  el.dot.style.opacity = '1';
 
-  gsap.fromTo(el.line, { attr: { opacity: 0 } }, { attr: { opacity: 1 }, duration: 0.55, ease: 'power2.out' });
+  // 2. LINE — 80ms delay, solid draw from dot to card
+  setTimeout(() => {
+    el.line.setAttribute('opacity', '1');
+    gsap.fromTo(el.line,
+      { attr: { 'stroke-dashoffset': '300' } },
+      { attr: { 'stroke-dashoffset': '0' }, duration: 0.45, ease: 'power2.out' }
+    );
+  }, 80);
+
+  // 3. CARD — 160ms delay
+  setTimeout(() => {
+    el.tab.classList.add('show');
+    // igloo.inc letter-scramble: decode the anatomy name on reveal
+    const nameEl = el.tab.querySelector('.a-tab-name');
+    const aData2 = anatomy.find(a => a.id === id);
+    if (nameEl && aData2) scrambleText(nameEl, aData2.name, 0.65);
+  }, 160);
+
+  const aData = anatomy.find(a => a.id === id);
 
   // ── Anatomy Focus System ───────────────────────────────────
   if (aData) {
@@ -2128,6 +2173,7 @@ function hideLabel(id) {
   el.pname.style.opacity = '0';
   el.tab.classList.remove('show');
   el.line.setAttribute('opacity', '0');
+  el.line.setAttribute('stroke-dashoffset', '300');
 
   // Fade out beacon
   const b = beaconMap[id];
@@ -2674,7 +2720,7 @@ let chromaVelocity = 0;
       // Sonar ring: expand outward from beacon, fade out
       sonarT = (sonarT + dt * 0.85) % 1.0;
       const ringScale = 1.0 + sonarT * 4.0;
-      sonarRing.position.copy(wp);
+      sonarRing.position.copy(_wp);
       sonarRing.lookAt(camera.position);    // always face camera
       sonarRing.scale.setScalar(ringScale);
       sonarRingMat.opacity = Math.max(0, (1.0 - sonarT) * 0.65);
