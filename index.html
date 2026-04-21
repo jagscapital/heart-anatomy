@@ -1688,7 +1688,7 @@ const anatomy = [
     color: '#e8233a',
     side: 'left',
     // Active Theory — camera position when descending past this segment
-    camPos: { x: -0.35, y: 1.40, z: 5.6 },
+    camPos: { x: 0, y: 0.91, z: 5.5 },
     // Igloo — environment atmosphere for this segment
     // overlayRgba: [r, g, b, a] — background atmosphere color
     // rimColor: hex — rim light color
@@ -1703,7 +1703,7 @@ const anatomy = [
     color: '#c92030',
     side: 'right',
     // Venous deoxygenated — exits upper-right, heading to lungs
-    camPos: { x: 0.55, y: 0.82, z: 5.5 },
+    camPos: { x: 0, y: 0.61, z: 5.5 },
     env: { overlayRgba: [88, 4, 80, 0.16], rimColor: 0xaa1080, rimInt: 2.0 },
   },
   {
@@ -1714,7 +1714,7 @@ const anatomy = [
     color: '#e03040',
     side: 'left',
     // Renewal — freshly oxygenated, posterior-left, thin walls
-    camPos: { x: -0.60, y: 0.18, z: 5.8 },
+    camPos: { x: 0, y: 0.17, z: 5.5 },
     env: { overlayRgba: [208, 44, 68, 0.12], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
@@ -1725,7 +1725,7 @@ const anatomy = [
     color: '#b01c2a',
     side: 'right',
     // Electric — SA node origin (heart's pacemaker), upper-right
-    camPos: { x: 0.60, y: 0.06, z: 5.4 },
+    camPos: { x: 0, y: 0.14, z: 5.5 },
     env: { overlayRgba: [18, 8, 155, 0.15], rimColor: 0x2211cc, rimInt: 1.8 },
   },
   {
@@ -1736,7 +1736,7 @@ const anatomy = [
     color: '#d52033',
     side: 'left',
     // Maximum force — thickest walls, systemic pressure, apex lower-left
-    camPos: { x: -0.45, y: -0.95, z: 5.1 },
+    camPos: { x: 0, y: -0.67, z: 5.5 },
     env: { overlayRgba: [195, 5, 8, 0.20], rimColor: 0xff0011, rimInt: 3.4 },
   },
   {
@@ -1747,7 +1747,7 @@ const anatomy = [
     color: '#a8182a',
     side: 'right',
     // Moderate force — crescent-shaped, wraps LV anteriorly
-    camPos: { x: 0.50, y: -0.80, z: 5.4 },
+    camPos: { x: 0, y: -0.55, z: 5.5 },
     env: { overlayRgba: [162, 22, 12, 0.15], rimColor: 0xdd1122, rimInt: 2.6 },
   },
 ];
@@ -3693,13 +3693,6 @@ let chromaVelocity = 0;
   if (inSpiral) {
     descentCamera(scrollProg);
 
-    // ── Subtle lean: heart tilts gently in the direction of camera X offset ──
-    // Replaces the orbital banking roll — creates dimensionality without spiraling.
-    // As camera drifts left (negative X) to frame left-side anatomy, the heart
-    // leans slightly right, giving the impression of depth and spatial separation.
-    const leanTarget = (camT.x / 5.5) * 0.06;
-    heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, leanTarget, 3.0, dt);
-
     // ── Anatomy Focus: rotate heart to face active anatomy point ──
     if (activeAnatomyId) {
       // Oscillate slightly around focusRotY so viewer sees the part from multiple angles
@@ -3715,7 +3708,7 @@ let chromaVelocity = 0;
   if (inSpiral && activeAnatomyId) {
     const aData = anatomy.find(a => a.id === activeAnatomyId);
     if (aData) {
-      const targetLookY = aData.worldOffset.y * HEART_BASE_SCALE * 0.55;
+      const targetLookY = aData.worldOffset.y * HEART_BASE_SCALE;
       camLookAt.y = THREE.MathUtils.damp(camLookAt.y, targetLookY, 2.5, dt);
     }
   } else {
