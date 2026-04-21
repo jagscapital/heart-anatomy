@@ -1688,7 +1688,7 @@ const anatomy = [
     color: '#e8233a',
     side: 'left',
     // Active Theory — camera position when descending past this segment
-    camPos: { x: 0, y: 0.91, z: 5.5 },
+    camPos: { x: 0, y: 0.91, z: 5.5 },  // entry — outside chest
     // Igloo — environment atmosphere for this segment
     // overlayRgba: [r, g, b, a] — background atmosphere color
     // rimColor: hex — rim light color
@@ -1703,7 +1703,7 @@ const anatomy = [
     color: '#c92030',
     side: 'right',
     // Venous deoxygenated — exits upper-right, heading to lungs
-    camPos: { x: 0, y: 0.61, z: 5.5 },
+    camPos: { x: 0, y: 0.61, z: 5.2 },
     env: { overlayRgba: [88, 4, 80, 0.30], rimColor: 0xaa1080, rimInt: 2.0 },
   },
   {
@@ -1714,7 +1714,7 @@ const anatomy = [
     color: '#e03040',
     side: 'left',
     // Renewal — freshly oxygenated, posterior-left, thin walls
-    camPos: { x: 0, y: 0.17, z: 5.5 },
+    camPos: { x: 0, y: 0.17, z: 4.9 },
     env: { overlayRgba: [208, 44, 68, 0.26], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
@@ -1725,8 +1725,8 @@ const anatomy = [
     color: '#b01c2a',
     side: 'right',
     // Electric — SA node origin (heart's pacemaker), upper-right
-    camPos: { x: 0, y: 0.14, z: 5.5 },
-    env: { overlayRgba: [18, 8, 155, 0.30], rimColor: 0x2211cc, rimInt: 1.8 },
+    camPos: { x: 0, y: 0.14, z: 4.7 },
+    env: { overlayRgba: [145, 25, 85, 0.30], rimColor: 0xcc1188, rimInt: 2.0 },
   },
   {
     id: 'left-ventricle',
@@ -1736,7 +1736,7 @@ const anatomy = [
     color: '#d52033',
     side: 'left',
     // Maximum force — thickest walls, systemic pressure, apex lower-left
-    camPos: { x: 0, y: -0.67, z: 5.5 },
+    camPos: { x: 0, y: -0.67, z: 4.4 },
     env: { overlayRgba: [195, 5, 8, 0.32], rimColor: 0xff0011, rimInt: 3.4 },
   },
   {
@@ -1747,7 +1747,7 @@ const anatomy = [
     color: '#a8182a',
     side: 'right',
     // Moderate force — crescent-shaped, wraps LV anteriorly
-    camPos: { x: 0, y: -0.55, z: 5.5 },
+    camPos: { x: 0, y: -0.55, z: 4.2 },
     env: { overlayRgba: [162, 22, 12, 0.28], rimColor: 0xdd1122, rimInt: 2.6 },
   },
 ];
@@ -2107,8 +2107,17 @@ new FBXLoader().load(
     });
 
     buildLabels();
-    // Delay card canvas render until fonts are loaded — otherwise canvas falls back to Arial
-    document.fonts.ready.then(() => buildAnatomyCards3D());
+    // Delay card canvas render until fonts are loaded — otherwise canvas falls back to Arial.
+    // After build, show any card whose anatomy is currently active (user scrolled before fonts loaded).
+    document.fonts.ready.then(() => {
+      buildAnatomyCards3D();
+      if (activeAnatomyId && cardMeshes3D[activeAnatomyId]) {
+        const c = cardMeshes3D[activeAnatomyId];
+        c.mesh.visible = true;
+        c.mesh.position.y = c.baseY;
+        c.mat.opacity = 0.96;
+      }
+    });
     buildProgressNav();
     setupScroll();
     setupHeroEntrance();
@@ -2347,15 +2356,18 @@ function buildAnatomyCards3D() {
     if (ln) ctx.fillText(ln.trimEnd(), 40, lineY);
 
     const tex = new THREE.CanvasTexture(cv);
-    const geo = new THREE.PlaneGeometry(2.8, 1.58);
+    const geo = new THREE.PlaneGeometry(2.0, 1.125);
     const mat = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
 
     // World position: anatomy Y level, offset to side, between heart (z=0) and camera (z=5.5)
-    const sideX = a.side === 'right' ? 2.75 : -2.75;
-    mesh.position.set(sideX, a.camPos.y, 3.4);
+    // X clamped dynamically so cards stay on-screen across all viewport widths (mobile-safe)
+    const aspect  = window.innerWidth / window.innerHeight;
+    const maxX    = Math.min(2.4, aspect * 1.6);
+    const sideX   = a.side === 'right' ? maxX : -maxX;
+    mesh.position.set(sideX, a.camPos.y, 3.6);
     mesh.visible = false;
     scene.add(mesh);
 
@@ -2494,9 +2506,10 @@ function hideLabel(id) {
   const exitX   = aData?.side === 'right' ?  35 : -35;
   const exitRot = aData?.side === 'right' ?   2 :  -2;
 
-  // 3D card fades out
+  // 3D card fades out — set visible false immediately as guard, onComplete confirms
   const c3d = cardMeshes3D[id];
   if (c3d) {
+    gsap.killTweensOf(c3d.mesh.position);
     gsap.to(c3d.mat, { opacity: 0, duration: 0.26, ease: 'power2.in', overwrite: 'auto',
       onComplete() { c3d.mesh.visible = false; }
     });
@@ -2984,7 +2997,8 @@ function setupScroll() {
         const g = (g1 + (g2 - g1) * t) | 0;
         const b = (b1 + (b2 - b1) * t) | 0;
         const a = (a1 + (a2 - a1) * t).toFixed(3);
-        envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
+        const _envCol = `rgba(${r},${g},${b},${a})`;
+        if (envOverlay.style.backgroundColor !== _envCol) envOverlay.style.backgroundColor = _envCol;
 
         // Rim light color + intensity lerp per segment (pre-allocated — zero heap alloc)
         _rimC1.setHex(anatomy[envIdx].env.rimColor);
