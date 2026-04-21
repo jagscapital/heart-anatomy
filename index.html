@@ -506,6 +506,85 @@
     .ow1, .ow2 { display: inline-block; }
 
     /* ─────────────────────────────────────────────
+       FINALE SECTION  — 5-stage cinematic scroll
+    ───────────────────────────────────────────── */
+    #finale-section {
+      position: relative;
+      z-index: 2;
+    }
+    #finale-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      visibility: hidden; /* hidden until setupFinale activates it */
+    }
+    .finale-stage {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 0 32px;
+      opacity: 0;
+      pointer-events: none;
+      will-change: opacity;
+    }
+    /* Stages 1–4: eyebrow + headline + body */
+    .finale-eyebrow {
+      font-size: 9.5px;
+      letter-spacing: 0.34em;
+      text-transform: uppercase;
+      color: rgba(232,35,58,0.65);
+      margin-bottom: 18px;
+    }
+    .finale-head {
+      font-family: 'Barlow Condensed', 'Inter', sans-serif;
+      font-size: clamp(52px, 9vw, 130px);
+      font-weight: 900;
+      line-height: 0.90;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+    .finale-head .fc-red {
+      color: var(--red-glow);
+    }
+    .finale-body {
+      margin-top: 20px;
+      font-size: 14px;
+      line-height: 1.7;
+      color: rgba(255,255,255,0.38);
+      max-width: 440px;
+      letter-spacing: 0.01em;
+    }
+    /* Stage 5: massive type */
+    .finale-massive {
+      font-family: 'Barlow Condensed', 'Inter', sans-serif;
+      font-size: clamp(80px, 19vw, 280px);
+      font-weight: 900;
+      line-height: 0.86;
+      letter-spacing: -0.02em;
+      color: #fff;
+      text-align: center;
+    }
+    .finale-massive span {
+      display: block;
+      color: var(--red-glow);
+    }
+    .finale-stat {
+      margin-top: 36px;
+      font-size: 9.5px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: rgba(232,35,58,0.48);
+    }
+
+    /* ─────────────────────────────────────────────
        ANATOMY CARDS  — staged text entrance (opacity/translateY only)
        Width/padding/color overridden by igloo section below
     ───────────────────────────────────────────── */
@@ -1004,11 +1083,8 @@
   <!-- GSAP pins this for orbital facts cards -->
   <section id="facts-section"></section>
 
-  <section id="outro">
-    <h2 class="outro-h2"><span class="ow1">Always</span><br/><span class="ow2"><em style="color:var(--red-glow);font-style:normal">Beating.</em></span></h2>
-    <p class="outro-body">Your heart started beating about 3 weeks after you were conceived. It has never stopped since — and it won't stop on its own.</p>
-    <p class="outro-stat">≈ 3 billion beats in a lifetime</p>
-  </section>
+  <!-- GSAP pins this for 5-stage cinematic finale scroll -->
+  <section id="finale-section"></section>
 
 </div>
 
@@ -1017,6 +1093,39 @@
   <h2>Did You Know?</h2>
   <p>The good and the brutal</p>
   <p id="facts-counter">1 / 8</p>
+</div>
+
+<!-- ── Cinematic Finale overlay (5 stages, pinned by GSAP) ── -->
+<div id="finale-overlay">
+  <!-- Stage 1: Anatomy Complete -->
+  <div class="finale-stage" id="fs-1">
+    <div class="finale-eyebrow">Stage 1 · Anatomy Complete</div>
+    <div class="finale-head">STRUCTURE<br/><span class="fc-red">COMPLETE</span></div>
+    <div class="finale-body">All six chambers mapped — aorta, pulmonary artery, atria, ventricles.</div>
+  </div>
+  <!-- Stage 2: Growth -->
+  <div class="finale-stage" id="fs-2">
+    <div class="finale-eyebrow">Stage 2 · Cardiac System</div>
+    <div class="finale-head">6 CHAMBERS<br/><span class="fc-red">1 SYSTEM</span></div>
+    <div class="finale-body">A four-pump architecture 400 million years in the making.</div>
+  </div>
+  <!-- Stage 3: Thoracic Cavity -->
+  <div class="finale-stage" id="fs-3">
+    <div class="finale-eyebrow">Stage 3 · Thoracic Cavity</div>
+    <div class="finale-head">RIBCAGE<br/><span class="fc-red">LUNGS · LIFE</span></div>
+    <div class="finale-body">Protected by bone. Surrounded by breath. Never alone in that chest.</div>
+  </div>
+  <!-- Stage 4: Full System -->
+  <div class="finale-stage" id="fs-4">
+    <div class="finale-eyebrow">Stage 4 · Full System</div>
+    <div class="finale-head">BEATING<br/><span class="fc-red">INSIDE YOU</span></div>
+    <div class="finale-body">Right now. Without permission. Without pause. Since before you were born.</div>
+  </div>
+  <!-- Stage 5: Always Beating (massive type) -->
+  <div class="finale-stage" id="fs-5">
+    <div class="finale-massive">ALWAYS<br/><span>BEATING.</span></div>
+    <div class="finale-stat">≈ 3 billion beats in a lifetime</div>
+  </div>
 </div>
 
 <div id="facts-overlay">
@@ -2407,8 +2516,11 @@ function setActivePDot(i) {
 let scrollProg   = 0;
 let inSpiral     = false;
 let inFacts      = false;
+let inFinale     = false;
+let finaleScale  = 1.0;   // multiplier applied to HEART_BASE_SCALE in heartbeatScale
 let lastEnvIdx   = -1;          // tracks previous segment index for boundary micro-transitions
-const coordTL    = document.getElementById('coord-tl');  // HUD top-left — updates per segment
+const coordTL      = document.getElementById('coord-tl');      // HUD top-left — updates per segment
+const frostOverlay = document.getElementById('frost-overlay'); // cached — avoid getElementById in hot path
 
 const SCROLL_PX = window.innerHeight * (IS_MOBILE ? 4 : 7);
 const N         = anatomy.length;
@@ -2450,7 +2562,7 @@ function setupScroll() {
     end:        `+=${SCROLL_PX}`,
     pin:        true,
     pinSpacing: true,
-    scrub:      0.3,
+    scrub:      0.1,
     onUpdate(self) {
       scrollProg = self.progress;
       inSpiral   = true;
@@ -2480,21 +2592,18 @@ function setupScroll() {
         rimLight.intensity = anatomy[envIdx].env.rimInt + (anatomy[envNext].env.rimInt - anatomy[envIdx].env.rimInt) * t;
 
         // ── Segment boundary micro-transition (Igloo environment switch moment) ──
-        // When the dwell window advances to a new segment: brief frost vignette pulse.
-        // This marks the "environment switch" instant — the moment you enter a new
-        // biological region. 240ms pulse, not enough to obscure, enough to register.
-        if (envIdx !== lastEnvIdx && lastEnvIdx !== -1) {
-          const fo = document.getElementById('frost-overlay');
-          fo.classList.add('active');
-          setTimeout(() => fo.classList.remove('active'), 240);
-        }
-        lastEnvIdx = envIdx;
-
-        // ── HUD coord mark: update top-left with current segment index + name ──
-        // Igloo precision detail — the system data reflects where you are in the organ.
-        if (coordTL) {
-          const segLabel = anatomy[envIdx].name.toUpperCase();
-          coordTL.innerHTML = `SYS · HRT-A${envIdx + 1}<br/>${segLabel}`;
+        // Gated inside envIdx !== lastEnvIdx — fires once per boundary crossing, not every frame.
+        // This prevents per-frame innerHTML reflow and per-frame getElementById lookups.
+        if (envIdx !== lastEnvIdx) {
+          if (lastEnvIdx !== -1) {
+            frostOverlay.classList.add('active');
+            setTimeout(() => frostOverlay.classList.remove('active'), 240);
+          }
+          // ── HUD coord mark: gated — only fires on segment boundary, not every scroll frame ──
+          if (coordTL) {
+            coordTL.innerHTML = `SYS · HRT-A${envIdx + 1}<br/>${anatomy[envIdx].name.toUpperCase()}`;
+          }
+          lastEnvIdx = envIdx;
         }
       }
 
@@ -2525,10 +2634,11 @@ function setupScroll() {
     onEnter() {
       inSpiral = true;
       nav.classList.add('visible');
-      // Frost dissolve on entry — Igloo section-level transition
-      const fo = document.getElementById('frost-overlay');
-      fo.classList.add('active');
-      setTimeout(() => fo.classList.remove('active'), 500);
+      // Frost dissolve on entry — Igloo section-level transition (cached ref, not getElementById)
+      frostOverlay.classList.add('active');
+      setTimeout(() => frostOverlay.classList.remove('active'), 500);
+      // HUD init — first segment state immediately (no one-frame stale "CARDIO ANATOMY" flash)
+      if (coordTL) coordTL.innerHTML = `SYS · HRT-A1<br/>${anatomy[0].name.toUpperCase()}`;
       // Snap camT to first segment's position so descent starts cleanly
       // (avoids the camera snapping from hero z=6.8 to a random orbit point)
       const first = anatomy[0].camPos;
@@ -2540,9 +2650,22 @@ function setupScroll() {
       envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
       rimLight.color.setHex(anatomy[0].env.rimColor);
       rimLight.intensity = anatomy[0].env.rimInt;
+      // Force first label visible immediately — prevents "skips first tab" on initial entry
+      showLabel(anatomy[0].id);
+      setActivePDot(0);
     },
     onLeave() {
       inSpiral = false;
+      // Kill ALL in-flight tab tweens, then force-clear immediately — no "ghost tabs" after exit
+      anatomy.forEach(a => {
+        const el = els[a.id];
+        if (el) {
+          gsap.killTweensOf(el.tab);
+          gsap.set(el.tab, { opacity: 0, x: 0, rotation: 0 });
+          el.tab.classList.remove('show');
+          el.active = false;
+        }
+      });
       hideAllLabels();
       nav.classList.remove('visible');
       // Clear environment atmosphere
@@ -2557,6 +2680,16 @@ function setupScroll() {
     },
     onLeaveBack() {
       inSpiral = false;
+      // Kill ALL in-flight tab tweens, force-clear — same as onLeave
+      anatomy.forEach(a => {
+        const el = els[a.id];
+        if (el) {
+          gsap.killTweensOf(el.tab);
+          gsap.set(el.tab, { opacity: 0, x: 0, rotation: 0 });
+          el.tab.classList.remove('show');
+          el.active = false;
+        }
+      });
       hideAllLabels();
       nav.classList.remove('visible');
       // Clear environment atmosphere on backward exit
@@ -2574,40 +2707,15 @@ function setupScroll() {
       camT.x = last.x;
       camT.y = last.y;
       camT.z = last.z;
+      // Force last label visible so re-entry shows the right tab immediately
+      showLabel(anatomy[N - 1].id);
+      setActivePDot(N - 1);
+      if (coordTL) coordTL.innerHTML = `SYS · HRT-A${N}<br/>${anatomy[N - 1].name.toUpperCase()}`;
     },
   });
 
   setupFactsSection();
-
-  gsap.set('.outro-h2',   { opacity: 1 });
-  gsap.set('.outro-body', { opacity: 0, filter: 'blur(6px)' });
-  gsap.set('.outro-stat', { opacity: 0, letterSpacing: '0.6em' });
-
-  gsap.from('.ow1', {
-    x: -70, opacity: 0, duration: 1.0, ease: 'expo.out',
-    scrollTrigger: { trigger: '#outro', start: 'top 72%' },
-  });
-  gsap.from('.ow2', {
-    x: 70, opacity: 0, duration: 1.0, ease: 'expo.out', delay: 0.08,
-    scrollTrigger: { trigger: '#outro', start: 'top 72%' },
-  });
-  gsap.to('.outro-body', {
-    opacity: 1, filter: 'blur(0px)', duration: 1.1, delay: 0.4, ease: 'power2.out',
-    clearProps: 'filter',
-    scrollTrigger: { trigger: '#outro', start: 'top 72%' },
-  });
-  gsap.to('.outro-stat', {
-    opacity: 1, letterSpacing: '0.26em', duration: 1.4, delay: 0.7, ease: 'power3.out',
-    scrollTrigger: { trigger: '#outro', start: 'top 72%' },
-  });
-  ScrollTrigger.create({
-    trigger: '#outro', start: 'top 72%', once: true,
-    onEnter() {
-      gsap.timeline()
-        .to(glowLight, { intensity: 2.5, duration: 0.18, ease: 'power2.in' })
-        .to(glowLight, { intensity: 1.2, duration: 1.0,  ease: 'power2.out' });
-    },
-  });
+  setupFinale();
 }
 
 // ── SPINNING FACTS RING ────────────────────────────────────────
@@ -2728,6 +2836,109 @@ function setupFactsSection() {
   });
 }
 
+// ── CINEMATIC FINALE ─────────────────────────────────────────────
+// 5-stage pinned scroll sequence. Camera zooms from z=7.5 → z=22.0.
+// finaleScale drives the heart size multiplier (0.85 → 1.8).
+// Each stage crossfades its text overlay and has a unique camera feel.
+// bloom.strength peaks at stage 5 for maximum visual impact.
+// ─────────────────────────────────────────────────────────────────
+const FINALE_SCROLL_PX = window.innerHeight * (IS_MOBILE ? 5 : 10);
+
+function setupFinale() {
+  const stageEls = Array.from(document.querySelectorAll('.finale-stage'));
+
+  ScrollTrigger.create({
+    trigger:    '#finale-section',
+    start:      'top top',
+    end:        `+=${FINALE_SCROLL_PX}`,
+    pin:        true,
+    pinSpacing: true,
+    scrub:      0.6,
+    onEnter() {
+      inFinale    = true;
+      inSpiral    = false;
+      finaleScale = 1.0; // start at current anatomy size — no shrink on entry
+      camT.x = 0; // center camera — anatomy section may leave it offset
+      hideAllLabels();
+      nav.classList.remove('visible');
+      envOverlay.style.backgroundColor = 'transparent';
+      document.getElementById('finale-overlay').style.visibility = 'visible';
+      // Stage 1: all beacons light simultaneously — "structure complete" reveal
+      anatomy.forEach(a => {
+        const b = beaconMap[a.id];
+        if (b) {
+          gsap.to(b.mat, { opacity: 1, duration: 0.6, ease: 'power2.out', overwrite: 'auto' });
+          gsap.to(b.mesh.scale, { x: 2.5, y: 2.5, z: 2.5, duration: 0.7, ease: 'back.out(1.4)', overwrite: 'auto' });
+        }
+      });
+    },
+    onLeave() {
+      inFinale = false;
+      bloom.strength = 0.28; // reset bloom after finale
+    },
+    onEnterBack() {
+      inFinale = true;
+      nav.classList.remove('visible');
+      envOverlay.style.backgroundColor = 'transparent';
+      document.getElementById('finale-overlay').style.visibility = 'visible';
+    },
+    onLeaveBack() {
+      inFinale    = false;
+      finaleScale = 1.0;
+      bloom.strength = 0.28;
+      camT.z = 7.5;
+      camT.y = 0.0;
+      document.getElementById('finale-overlay').style.visibility = 'hidden';
+      stageEls.forEach(el => { el.style.opacity = '0'; });
+    },
+    onUpdate(self) {
+      const p = self.progress;
+
+      // ── Camera path: user spec — y mapped to scroll, z zooms out ──
+      // camera.position.y = -100 * scrollProgress with 0.08 smoothing
+      // Translated to Three.js world units: y goes 0 → -1.5, z goes 7.5 → 22.0
+      camT.z = 7.5  + p * 14.5;   // 7.5 → 22.0 (pull back to reveal scale)
+      camT.y = 0.0  - p * 1.5;    // 0.0 → -1.5 (slight downward drift, chest reveal)
+
+      // ── finaleScale: heart grows through stages 2–5 ──
+      // Stage 1 holds at normal size (beacons light, camera centers).
+      // Growth begins in stage 2 — heart expands to 1.8× as camera zooms out.
+      if      (p < 0.20) { finaleScale = 1.00; }                               // hold — "anatomy complete"
+      else if (p < 0.40) { finaleScale = 1.00 + ((p - 0.20) / 0.20) * 0.35; } // 1.00 → 1.35
+      else if (p < 0.60) { finaleScale = 1.35 + ((p - 0.40) / 0.20) * 0.25; } // 1.35 → 1.60
+      else if (p < 0.80) { finaleScale = 1.60 + ((p - 0.60) / 0.20) * 0.20; } // 1.60 → 1.80
+      else               { finaleScale = 1.80; }                               // hold 1.80
+
+      // ── Bloom crescendo: peaks at stage 5 ──
+      bloom.strength = 0.28 + p * 0.82;   // 0.28 → 1.10
+
+      // ── Stage overlays: each stage fades in/holds/fades out ──
+      // 5 stages × 20% each. Fade-in: first 10% of stage. Fade-out: last 12%.
+      // Stage 5 (i=4) exception: no fade-out — holds to the very end of the scroll.
+      stageEls.forEach((el, i) => {
+        const stageStart  = i * 0.20;
+        const stageEnd    = stageStart + 0.20;
+        const isLastStage = i === stageEls.length - 1;
+        let alpha = 0;
+        if (p >= stageStart && (isLastStage || p <= stageEnd)) {
+          const local = Math.min(1, (p - stageStart) / 0.20); // clamp at 1 for last stage
+          if (local < 0.10) {
+            alpha = local / 0.10;                    // fade in
+          } else if (!isLastStage && local > 0.88) {
+            alpha = (1.0 - local) / 0.12;            // fade out (not for last stage)
+          } else {
+            alpha = 1.0;                             // hold
+          }
+        }
+        el.style.opacity = Math.max(0, Math.min(1, alpha));
+      });
+
+      // NOTE: glowLight.intensity is owned by heartbeatScale() — it pulses every frame.
+      // Bloom handles the visual crescendo at stage 5; no glow override needed here.
+    },
+  });
+}
+
 function setupHeroEntrance() {
   const eyebrow = document.querySelector('.hero-eyebrow');
   const orig    = eyebrow.textContent;
@@ -2800,8 +3011,16 @@ function descentCamera(p) {
   const curr = anatomy[segIdx].camPos;
   const next = anatomy[nextIdx].camPos;
 
-  // Smoothstep — weighted ease into each new segment position
-  const t = segFrac * segFrac * (3.0 - 2.0 * segFrac);
+  // LOCK BEHAVIOR — camera holds at curr for first 85% of dwell (segment reads cleanly),
+  // then eases to next during the final 15% (smooth handoff, no snapping).
+  // This gives the "lock on / release" feel: you scroll freely, camera sits still,
+  // then only moves when you're clearly heading to the next segment.
+  const LOCK_FRAC = 0.85;
+  let t = 0;
+  if (segFrac > LOCK_FRAC) {
+    const release = (segFrac - LOCK_FRAC) / (1.0 - LOCK_FRAC); // 0..1 over final 15%
+    t = release * release * (3.0 - 2.0 * release);              // smoothstep ease
+  }
 
   camT.x = curr.x + (next.x - curr.x) * t;
   camT.y = curr.y + (next.y - curr.y) * t;
@@ -2850,9 +3069,10 @@ function heartbeatScale(dt) {
 
   // BOT-01: asymmetric cardiac squeeze
   // LV systole: radial axes thicken, long axis shortens, Z > X (apex twist left)
-  const sx = HEART_BASE_SCALE * (1.0 + beat * 1.02);
-  const sy = HEART_BASE_SCALE * (1.0 - beat * 0.80);
-  const sz = HEART_BASE_SCALE * (1.0 + beat * 1.18);
+  // finaleScale multiplied in — heart grows during cinematic finale without fighting beat cycle
+  const sx = HEART_BASE_SCALE * finaleScale * (1.0 + beat * 1.02);
+  const sy = HEART_BASE_SCALE * finaleScale * (1.0 - beat * 0.80);
+  const sz = HEART_BASE_SCALE * finaleScale * (1.0 + beat * 1.18);
   heartGroup.scale.set(sx, sy, sz);
 
   // BOT-01: apex rocking on Z, synchronized with beat cycle
