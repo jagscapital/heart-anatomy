@@ -1693,7 +1693,7 @@ const anatomy = [
     // overlayRgba: [r, g, b, a] — background atmosphere color
     // rimColor: hex — rim light color
     // rimInt: float — rim light intensity
-    env: { overlayRgba: [215, 15, 35, 0.28], rimColor: 0xff2244, rimInt: 2.4 },
+    env: { overlayRgba: [215, 15, 35, 0.35], rimColor: 0xff2244, rimInt: 2.4 },
   },
   {
     id: 'pulmonary-artery',
@@ -1704,7 +1704,7 @@ const anatomy = [
     side: 'right',
     // Venous deoxygenated — exits upper-right, heading to lungs
     camPos: { x: 0, y: 0.61, z: 5.2 },
-    env: { overlayRgba: [88, 4, 80, 0.30], rimColor: 0xaa1080, rimInt: 2.0 },
+    env: { overlayRgba: [88, 4, 80, 0.26], rimColor: 0xaa1080, rimInt: 2.0 },
   },
   {
     id: 'left-atrium',
@@ -1714,7 +1714,7 @@ const anatomy = [
     color: '#e03040',
     side: 'left',
     // Renewal — freshly oxygenated, posterior-left, thin walls
-    camPos: { x: 0, y: 0.24, z: 4.9 },
+    camPos: { x: 0, y: 0.28, z: 4.9 },
     env: { overlayRgba: [208, 44, 68, 0.26], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
@@ -1725,7 +1725,7 @@ const anatomy = [
     color: '#b01c2a',
     side: 'right',
     // Electric — SA node origin (heart's pacemaker), upper-right
-    camPos: { x: 0, y: 0.06, z: 4.7 },
+    camPos: { x: 0, y: 0.00, z: 4.7 },
     env: { overlayRgba: [145, 25, 85, 0.30], rimColor: 0xcc1188, rimInt: 2.0 },
   },
   {
@@ -1737,7 +1737,7 @@ const anatomy = [
     side: 'left',
     // Maximum force — thickest walls, systemic pressure, apex lower-left
     camPos: { x: 0, y: -0.67, z: 4.4 },
-    env: { overlayRgba: [195, 5, 8, 0.32], rimColor: 0xff0011, rimInt: 3.4 },
+    env: { overlayRgba: [195, 5, 8, 0.38], rimColor: 0xff0011, rimInt: 3.4 },
   },
   {
     id: 'right-ventricle',
@@ -2160,6 +2160,7 @@ new FBXLoader().load(
         // Store rest + explosion targets
         mesh.userData.restPos    = mesh.position.clone();
         mesh.userData.explodeDir = new THREE.Vector3(tx, y + 1, tz).normalize();
+        mesh.renderOrder = 5; // behind anatomy cards (10) but above background (0)
         iglooGroup.add(mesh);
         iglooBlocks.push(mesh);
       }
@@ -2341,9 +2342,10 @@ function buildAnatomyCards3D() {
     ctx.lineWidth   = 2;
     _rrect(ctx, 4, 4, CW - 8, CH - 8, 20); ctx.stroke();
 
-    // Anatomy name
+    // Anatomy name — scale font to canvas width for consistent proportions
+    const titleSize = Math.max(48, Math.round(CW * 0.074)); // 76px at 1024, scales down proportionally
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 76px "Barlow Condensed", Arial, sans-serif';
+    ctx.font = `bold ${titleSize}px "Barlow Condensed", Arial, sans-serif`;
     ctx.fillText(a.name.toUpperCase(), 40, 96);
 
     // Divider
@@ -2368,8 +2370,9 @@ function buildAnatomyCards3D() {
 
     const tex = new THREE.CanvasTexture(cv);
     tex.magFilter = THREE.LinearFilter;
-    tex.minFilter = THREE.LinearMipMapLinearFilter;
-    tex.generateMipmaps = true;
+    tex.minFilter = THREE.LinearFilter; // CanvasTexture doesn't support runtime mipmaps
+    tex.generateMipmaps = false;
+    tex.anisotropy = renderer.capabilities.maxAnisotropy; // anisotropic filtering instead
     const geo = new THREE.PlaneGeometry(2.0, 1.125);
     const mat = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, opacity: 0, depthWrite: false,
@@ -2383,7 +2386,7 @@ function buildAnatomyCards3D() {
     const aspect  = window.innerWidth / window.innerHeight;
     const maxX    = Math.min(2.4, aspect * 1.6);
     const sideX   = a.side === 'right' ? maxX : -maxX;
-    mesh.position.set(sideX, a.camPos.y, 3.6);
+    mesh.position.set(sideX, a.camPos.y, 3.8);
     mesh.visible = false;
     scene.add(mesh);
 
@@ -2482,8 +2485,8 @@ function showLabel(id) {
   const c3d = cardMeshes3D[id];
   if (c3d) {
     c3d.mesh.visible = true;
-    // Drift: card starts 0.28 units above its resting Y, settles down as camera arrives
-    c3d.mesh.position.y = c3d.baseY + 0.28;
+    // Atomic set then tween — gsap.set prevents one-frame flash at baseY before offset applied
+    gsap.set(c3d.mesh.position, { y: c3d.baseY + 0.28 });
     gsap.to(c3d.mesh.position, { y: c3d.baseY, duration: 0.55, ease: 'power3.out', overwrite: 'auto' });
     gsap.to(c3d.mat, { opacity: 0.96, duration: 0.50, ease: 'power2.out', overwrite: 'auto' });
   }
@@ -2507,7 +2510,7 @@ function showLabel(id) {
       gsap.to(b.mat, { opacity: 1, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
       // Scale beacon 3.5× — creates a visible glowing orb marking the active segment region.
       // The spring ease (back.out) gives a physical pop feel matching the card entry.
-      gsap.to(b.mesh.scale, { x: 3.5, y: 3.5, z: 3.5, duration: 0.45, ease: 'back.out(1.6)', overwrite: 'auto' });
+      gsap.to(b.mesh.scale, { x: 3.5, y: 3.5, z: 3.5, duration: 0.55, ease: 'back.out(1.6)', overwrite: 'auto' });
     }
   }
 }
@@ -3044,7 +3047,9 @@ function setupScroll() {
         const end   = i === N - 1 ? 1.0 : start + DWELL; // last segment includes p=1.0
         if (scrollProg >= start && scrollProg <= end) {
           showLabel(a.id);
-          setActivePDot(i);
+          // Sync dot to camera unlock — dot updates when camera starts moving, not at segment start
+          const localProg = (scrollProg - start) / DWELL;
+          if (localProg >= LOCK_FRAC) setActivePDot(i);
 
           // ── Heart pre-rotation: begin rotating toward NEXT anatomy point ──
           // Fires when 80% through current dwell → smooth handoff, no snap on transition
@@ -3407,10 +3412,12 @@ function setupFinale() {
 
         heartSegMeshes.forEach(s => {
           s.mesh.position.lerpVectors(s.scatterPos, s.assembledPos, ease);
-          s.mesh.scale.setScalar(Math.max(0.08, ease)); // materialize as they arrive
+          s.mesh.scale.setScalar(Math.max(0.08, ease));
         });
 
-        camT.z = 7.5;
+        // Camera eases FROM spiral exit z (~4.2) → 6.5 as segments assemble —
+        // segments appear to grow toward viewer rather than assembling at fixed scale
+        camT.z = THREE.MathUtils.lerp(4.2, 6.5, ease);
         camT.y = 0.0;
         finaleScale = 1.0;
         segmentsAssembled = false;
@@ -3425,7 +3432,7 @@ function setupFinale() {
         segmentsAssembled = true;
         const s2 = (p - 0.20) / 0.20;
         finaleScale = 1.0 + s2 * 0.35;                  // 1.0 → 1.35
-        camT.z = 7.5 + s2 * 3.0;                        // 7.5 → 10.5 (crosses rib wall ~9.5)
+        camT.z = 6.5 + s2 * 4.0;                        // 6.5 → 10.5 (crosses rib wall ~9.5)
         camT.y = 0.0;
         _updateSegmentScale();
 
@@ -3594,7 +3601,7 @@ function descentCamera(p) {
   // then eases to next during the final 15% (smooth handoff, no snapping).
   // This gives the "lock on / release" feel: you scroll freely, camera sits still,
   // then only moves when you're clearly heading to the next segment.
-  const LOCK_FRAC = 0.70; // 30% of each segment for environment crossfade (was 15%)
+  const LOCK_FRAC = 0.55; // 45% of each segment for camera movement — feels deliberate
   let t = 0;
   if (segFrac > LOCK_FRAC) {
     const release = (segFrac - LOCK_FRAC) / (1.0 - LOCK_FRAC); // 0..1 over final 15%
