@@ -1714,7 +1714,7 @@ const anatomy = [
     color: '#e03040',
     side: 'left',
     // Renewal — freshly oxygenated, posterior-left, thin walls
-    camPos: { x: 0, y: 0.17, z: 4.9 },
+    camPos: { x: 0, y: 0.24, z: 4.9 },
     env: { overlayRgba: [208, 44, 68, 0.26], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
@@ -1725,7 +1725,7 @@ const anatomy = [
     color: '#b01c2a',
     side: 'right',
     // Electric — SA node origin (heart's pacemaker), upper-right
-    camPos: { x: 0, y: 0.14, z: 4.7 },
+    camPos: { x: 0, y: 0.06, z: 4.7 },
     env: { overlayRgba: [145, 25, 85, 0.30], rimColor: 0xcc1188, rimInt: 2.0 },
   },
   {
@@ -2309,6 +2309,17 @@ function buildLabels() {
 // Each card is a THREE.Mesh plane with a canvas texture, placed at the exact
 // world Y position of its anatomy point. As the camera descends, these cards
 // enter the frame naturally — the viewer encounters them, not the other way around.
+// Polyfill for ctx.roundRect — unsupported on iOS Safari < 15.4, Android Chrome < 99
+function _rrect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y,     x + w, y + r,     r);
+  ctx.lineTo(x + w, y + h - r); ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+  ctx.lineTo(x + r, y + h); ctx.arcTo(x,     y + h, x,     y + h - r, r);
+  ctx.lineTo(x, y + r);     ctx.arcTo(x,     y,     x + r, y,         r);
+  ctx.closePath();
+}
+
 function buildAnatomyCards3D() {
   anatomy.forEach(a => {
     const CW = 1024, CH = 576;
@@ -2319,7 +2330,7 @@ function buildAnatomyCards3D() {
     // Dark glass panel
     ctx.clearRect(0, 0, CW, CH);
     ctx.fillStyle = 'rgba(5, 1, 7, 0.93)';
-    ctx.beginPath(); ctx.roundRect(4, 4, CW - 8, CH - 8, 20); ctx.fill();
+    _rrect(ctx, 4, 4, CW - 8, CH - 8, 20); ctx.fill();
 
     // Left red accent bar
     ctx.fillStyle = '#e8233a';
@@ -2328,7 +2339,7 @@ function buildAnatomyCards3D() {
     // Border
     ctx.strokeStyle = 'rgba(232, 35, 58, 0.38)';
     ctx.lineWidth   = 2;
-    ctx.beginPath(); ctx.roundRect(4, 4, CW - 8, CH - 8, 20); ctx.stroke();
+    _rrect(ctx, 4, 4, CW - 8, CH - 8, 20); ctx.stroke();
 
     // Anatomy name
     ctx.fillStyle = '#ffffff';
@@ -2356,11 +2367,16 @@ function buildAnatomyCards3D() {
     if (ln) ctx.fillText(ln.trimEnd(), 40, lineY);
 
     const tex = new THREE.CanvasTexture(cv);
+    tex.magFilter = THREE.LinearFilter;
+    tex.minFilter = THREE.LinearMipMapLinearFilter;
+    tex.generateMipmaps = true;
     const geo = new THREE.PlaneGeometry(2.0, 1.125);
     const mat = new THREE.MeshBasicMaterial({
-      map: tex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+      map: tex, transparent: true, opacity: 0, depthWrite: false,
+      side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
+    mesh.renderOrder = 10;
 
     // World position: anatomy Y level, offset to side, between heart (z=0) and camera (z=5.5)
     // X clamped dynamically so cards stay on-screen across all viewport widths (mobile-safe)
@@ -2371,7 +2387,7 @@ function buildAnatomyCards3D() {
     mesh.visible = false;
     scene.add(mesh);
 
-    cardMeshes3D[a.id] = { mesh, mat, baseY: a.camPos.y };
+    cardMeshes3D[a.id] = { mesh, mat, tex, geo, baseY: a.camPos.y };
   });
 }
 
@@ -2506,10 +2522,11 @@ function hideLabel(id) {
   const exitX   = aData?.side === 'right' ?  35 : -35;
   const exitRot = aData?.side === 'right' ?   2 :  -2;
 
-  // 3D card fades out — set visible false immediately as guard, onComplete confirms
+  // 3D card fades out — kill position tween, reset Y to baseY so next show starts clean
   const c3d = cardMeshes3D[id];
   if (c3d) {
     gsap.killTweensOf(c3d.mesh.position);
+    c3d.mesh.position.y = c3d.baseY; // reset so next float-in starts from correct anchor
     gsap.to(c3d.mat, { opacity: 0, duration: 0.26, ease: 'power2.in', overwrite: 'auto',
       onComplete() { c3d.mesh.visible = false; }
     });
@@ -2976,7 +2993,7 @@ function setupScroll() {
     end:        `+=${SCROLL_PX}`,
     pin:        true,
     pinSpacing: true,
-    scrub:      0.1,
+    scrub:      0.05,
     onUpdate(self) {
       scrollProg = self.progress;
       inSpiral   = true;
@@ -3024,8 +3041,8 @@ function setupScroll() {
 
       anatomy.forEach((a, i) => {
         const start = (i / N);
-        const end   = start + DWELL;
-        if (scrollProg >= start && scrollProg < end) {
+        const end   = i === N - 1 ? 1.0 : start + DWELL; // last segment includes p=1.0
+        if (scrollProg >= start && scrollProg <= end) {
           showLabel(a.id);
           setActivePDot(i);
 
@@ -3057,8 +3074,8 @@ function setupScroll() {
       gsap.killTweensOf(camT);
       gsap.to(camT, {
         x: first.x, y: first.y, z: first.z,
-        duration: 1.4,
-        ease: 'power4.inOut',
+        duration: 1.6,
+        ease: 'power3.inOut',
         overwrite: true,
       });
       const [r, g, b, a] = anatomy[0].env.overlayRgba;
@@ -3577,7 +3594,7 @@ function descentCamera(p) {
   // then eases to next during the final 15% (smooth handoff, no snapping).
   // This gives the "lock on / release" feel: you scroll freely, camera sits still,
   // then only moves when you're clearly heading to the next segment.
-  const LOCK_FRAC = 0.85;
+  const LOCK_FRAC = 0.70; // 30% of each segment for environment crossfade (was 15%)
   let t = 0;
   if (segFrac > LOCK_FRAC) {
     const release = (segFrac - LOCK_FRAC) / (1.0 - LOCK_FRAC); // 0..1 over final 15%
@@ -3841,7 +3858,7 @@ let chromaVelocity = 0;
     lungsGroup.scale.z = lungsBaseScale;
   }
 
-  updateParticles(dt);
+  if (!inFacts && !inFinale) updateParticles(dt);
   updateCrystals();
   updateLabelPositions();
   scheduleBeats();
@@ -3862,6 +3879,20 @@ window.addEventListener('resize', () => {
     1 / (w * DPR),
     1 / (h * DPR)
   );
+  // Reposition 3D cards to match new aspect ratio
+  const newMaxX = Math.min(2.4, (w / h) * 1.6);
+  anatomy.forEach(a => {
+    const c = cardMeshes3D[a.id];
+    if (c) c.mesh.position.x = a.side === 'right' ? newMaxX : -newMaxX;
+  });
+});
+
+window.addEventListener('beforeunload', () => {
+  Object.values(cardMeshes3D).forEach(c => {
+    c.tex.dispose();
+    c.mat.dispose();
+    c.geo.dispose();
+  });
 });
 </script>
 </body>
