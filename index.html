@@ -2107,6 +2107,7 @@ new FBXLoader().load(
     });
 
     buildLabels();
+    buildAnatomyCards3D();
     buildProgressNav();
     setupScroll();
     setupHeroEntrance();
@@ -2251,6 +2252,7 @@ const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
 const els     = {};
 const TAB_W   = 200; // must match .a-tab { width: 200px } in CSS
+const cardMeshes3D = {}; // 3D world-space anatomy cards
 
 function buildLabels() {
   anatomy.forEach(a => {
@@ -2290,6 +2292,73 @@ function buildLabels() {
     svgEl.appendChild(line);
 
     els[a.id] = { dot, pname, tab, line, active: false };
+  });
+}
+
+// ── 3D world-space anatomy cards ────────────────────────────────────────────
+// Each card is a THREE.Mesh plane with a canvas texture, placed at the exact
+// world Y position of its anatomy point. As the camera descends, these cards
+// enter the frame naturally — the viewer encounters them, not the other way around.
+function buildAnatomyCards3D() {
+  anatomy.forEach(a => {
+    const CW = 512, CH = 288;
+    const cv  = document.createElement('canvas');
+    cv.width  = CW; cv.height = CH;
+    const ctx = cv.getContext('2d');
+
+    // Dark glass panel
+    ctx.clearRect(0, 0, CW, CH);
+    ctx.fillStyle = 'rgba(5, 1, 7, 0.93)';
+    ctx.beginPath(); ctx.roundRect(2, 2, CW - 4, CH - 4, 10); ctx.fill();
+
+    // Left red accent bar
+    ctx.fillStyle = '#e8233a';
+    ctx.fillRect(2, 2, 4, CH - 4);
+
+    // Border
+    ctx.strokeStyle = 'rgba(232, 35, 58, 0.38)';
+    ctx.lineWidth   = 1.2;
+    ctx.beginPath(); ctx.roundRect(2, 2, CW - 4, CH - 4, 10); ctx.stroke();
+
+    // Anatomy name
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 40px "Barlow Condensed", Arial, sans-serif';
+    ctx.fillText(a.name.toUpperCase(), 22, 50);
+
+    // Divider
+    ctx.strokeStyle = 'rgba(232, 35, 58, 0.28)';
+    ctx.lineWidth   = 0.8;
+    ctx.beginPath(); ctx.moveTo(22, 64); ctx.lineTo(CW - 22, 64); ctx.stroke();
+
+    // Body text (word-wrap)
+    ctx.fillStyle = 'rgba(200, 176, 184, 0.90)';
+    ctx.font      = '19px Inter, Arial, sans-serif';
+    const words = a.text.split(' ');
+    let ln = '', lineY = 92;
+    for (const w of words) {
+      const test = ln + w + ' ';
+      if (ctx.measureText(test).width > CW - 44 && ln !== '') {
+        ctx.fillText(ln.trimEnd(), 22, lineY);
+        ln = w + ' '; lineY += 28;
+        if (lineY > CH - 18) break;
+      } else { ln = test; }
+    }
+    if (ln) ctx.fillText(ln.trimEnd(), 22, lineY);
+
+    const tex = new THREE.CanvasTexture(cv);
+    const geo = new THREE.PlaneGeometry(2.8, 1.58);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+
+    // World position: anatomy Y level, offset to side, between heart (z=0) and camera (z=5.5)
+    const sideX = a.side === 'right' ? 2.75 : -2.75;
+    mesh.position.set(sideX, a.camPos.y, 3.4);
+    mesh.visible = false;
+    scene.add(mesh);
+
+    cardMeshes3D[a.id] = { mesh, mat, baseY: a.camPos.y };
   });
 }
 
@@ -2380,30 +2449,15 @@ function showLabel(id) {
   // ── 1. DOT — immediate pop ──────────────────────────────────
   el.dot.style.opacity = '1';
 
-  // ── 2. LINE — 80ms delay, solid draw from dot to card ───────
-  setTimeout(() => {
-    if (!el.active) return;
-    el.line.setAttribute('opacity', '1');
-    gsap.fromTo(el.line,
-      { attr: { 'stroke-dashoffset': '2000' } },
-      { attr: { 'stroke-dashoffset': '0' }, duration: 0.55, ease: 'power2.out', overwrite: 'auto' }
-    );
-  }, 80);
-
-  // ── 3. CARD — 160ms delay, falls from top with physics ──────
-  setTimeout(() => {
-    if (!el.active) return;
-    el.tab.classList.add('show');
-    const nameEl = el.tab.querySelector('.a-tab-name');
-    if (nameEl && aData) scrambleText(nameEl, aData.name, 0.65);
-    // Falling entry: drop in from above with slight side-lean
-    const fromX = aData?.side === 'right' ?  32 : -32;
-    const fromR = aData?.side === 'right' ?   4 :  -4;
-    gsap.fromTo(el.tab,
-      { y: -90, x: fromX, rotation: fromR, scale: 0.93 },
-      { y:   0, x:     0, rotation:     0, scale:    1, duration: 0.52, ease: 'power3.out', overwrite: 'auto' }
-    );
-  }, 160);
+  // ── 2. 3D CARD — floats into position from slightly above ───
+  const c3d = cardMeshes3D[id];
+  if (c3d) {
+    c3d.mesh.visible = true;
+    // Drift: card starts 0.28 units above its resting Y, settles down as camera arrives
+    c3d.mesh.position.y = c3d.baseY + 0.28;
+    gsap.to(c3d.mesh.position, { y: c3d.baseY, duration: 0.55, ease: 'power3.out', overwrite: 'auto' });
+    gsap.to(c3d.mat, { opacity: 0.96, duration: 0.50, ease: 'power2.out', overwrite: 'auto' });
+  }
 
   // ── Anatomy Focus System ───────────────────────────────────
   if (aData) {
@@ -2439,13 +2493,13 @@ function hideLabel(id) {
   const exitX   = aData?.side === 'right' ?  35 : -35;
   const exitRot = aData?.side === 'right' ?   2 :  -2;
 
-  // Card exits toward its edge (opposite direction to entry fall)
-  gsap.to(el.tab, { x: exitX, rotation: exitRot, opacity: 0, duration: 0.26, ease: 'power2.in', overwrite: 'auto',
-    onComplete() { el.tab.classList.remove('show'); gsap.set(el.tab, { clearProps: 'x,y,rotation,scale,opacity' }); }
-  });
-
-  el.line.setAttribute('opacity', '0');
-  el.line.setAttribute('stroke-dashoffset', '2000');
+  // 3D card fades out
+  const c3d = cardMeshes3D[id];
+  if (c3d) {
+    gsap.to(c3d.mat, { opacity: 0, duration: 0.26, ease: 'power2.in', overwrite: 'auto',
+      onComplete() { c3d.mesh.visible = false; }
+    });
+  }
 
   // Fade out vessel tube
   const v = vesselMap[id];
@@ -2468,6 +2522,7 @@ function hideAllLabels() {
   activeAnatomyId = null;
   flashLight.intensity = 0;
   sonarRingMat.opacity = 0;
+  Object.values(cardMeshes3D).forEach(c => { c.mat.opacity = 0; c.mesh.visible = false; });
   // Restore heart and SSS to full opacity
   gsap.to(heartMat, { opacity: 1.0, duration: 0.4, ease: 'power2.out' });
   gsap.to(sssMat,   { opacity: 0.22, duration: 0.4, ease: 'power2.out' });
