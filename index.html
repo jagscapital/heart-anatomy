@@ -1693,7 +1693,7 @@ const anatomy = [
     // overlayRgba: [r, g, b, a] — background atmosphere color
     // rimColor: hex — rim light color
     // rimInt: float — rim light intensity
-    env: { overlayRgba: [215, 15, 35, 0.14], rimColor: 0xff2244, rimInt: 2.4 },
+    env: { overlayRgba: [215, 15, 35, 0.28], rimColor: 0xff2244, rimInt: 2.4 },
   },
   {
     id: 'pulmonary-artery',
@@ -1704,7 +1704,7 @@ const anatomy = [
     side: 'right',
     // Venous deoxygenated — exits upper-right, heading to lungs
     camPos: { x: 0, y: 0.61, z: 5.5 },
-    env: { overlayRgba: [88, 4, 80, 0.16], rimColor: 0xaa1080, rimInt: 2.0 },
+    env: { overlayRgba: [88, 4, 80, 0.30], rimColor: 0xaa1080, rimInt: 2.0 },
   },
   {
     id: 'left-atrium',
@@ -1715,7 +1715,7 @@ const anatomy = [
     side: 'left',
     // Renewal — freshly oxygenated, posterior-left, thin walls
     camPos: { x: 0, y: 0.17, z: 5.5 },
-    env: { overlayRgba: [208, 44, 68, 0.12], rimColor: 0xff4466, rimInt: 2.2 },
+    env: { overlayRgba: [208, 44, 68, 0.26], rimColor: 0xff4466, rimInt: 2.2 },
   },
   {
     id: 'right-atrium',
@@ -1726,7 +1726,7 @@ const anatomy = [
     side: 'right',
     // Electric — SA node origin (heart's pacemaker), upper-right
     camPos: { x: 0, y: 0.14, z: 5.5 },
-    env: { overlayRgba: [18, 8, 155, 0.15], rimColor: 0x2211cc, rimInt: 1.8 },
+    env: { overlayRgba: [18, 8, 155, 0.30], rimColor: 0x2211cc, rimInt: 1.8 },
   },
   {
     id: 'left-ventricle',
@@ -1737,7 +1737,7 @@ const anatomy = [
     side: 'left',
     // Maximum force — thickest walls, systemic pressure, apex lower-left
     camPos: { x: 0, y: -0.67, z: 5.5 },
-    env: { overlayRgba: [195, 5, 8, 0.20], rimColor: 0xff0011, rimInt: 3.4 },
+    env: { overlayRgba: [195, 5, 8, 0.32], rimColor: 0xff0011, rimInt: 3.4 },
   },
   {
     id: 'right-ventricle',
@@ -1748,7 +1748,7 @@ const anatomy = [
     side: 'right',
     // Moderate force — crescent-shaped, wraps LV anteriorly
     camPos: { x: 0, y: -0.55, z: 5.5 },
-    env: { overlayRgba: [162, 22, 12, 0.15], rimColor: 0xdd1122, rimInt: 2.6 },
+    env: { overlayRgba: [162, 22, 12, 0.28], rimColor: 0xdd1122, rimInt: 2.6 },
   },
 ];
 
@@ -2107,7 +2107,8 @@ new FBXLoader().load(
     });
 
     buildLabels();
-    buildAnatomyCards3D();
+    // Delay card canvas render until fonts are loaded — otherwise canvas falls back to Arial
+    document.fonts.ready.then(() => buildAnatomyCards3D());
     buildProgressNav();
     setupScroll();
     setupHeroEntrance();
@@ -2301,7 +2302,7 @@ function buildLabels() {
 // enter the frame naturally — the viewer encounters them, not the other way around.
 function buildAnatomyCards3D() {
   anatomy.forEach(a => {
-    const CW = 512, CH = 288;
+    const CW = 1024, CH = 576;
     const cv  = document.createElement('canvas');
     cv.width  = CW; cv.height = CH;
     const ctx = cv.getContext('2d');
@@ -2309,41 +2310,41 @@ function buildAnatomyCards3D() {
     // Dark glass panel
     ctx.clearRect(0, 0, CW, CH);
     ctx.fillStyle = 'rgba(5, 1, 7, 0.93)';
-    ctx.beginPath(); ctx.roundRect(2, 2, CW - 4, CH - 4, 10); ctx.fill();
+    ctx.beginPath(); ctx.roundRect(4, 4, CW - 8, CH - 8, 20); ctx.fill();
 
     // Left red accent bar
     ctx.fillStyle = '#e8233a';
-    ctx.fillRect(2, 2, 4, CH - 4);
+    ctx.fillRect(4, 4, 7, CH - 8);
 
     // Border
     ctx.strokeStyle = 'rgba(232, 35, 58, 0.38)';
-    ctx.lineWidth   = 1.2;
-    ctx.beginPath(); ctx.roundRect(2, 2, CW - 4, CH - 4, 10); ctx.stroke();
+    ctx.lineWidth   = 2;
+    ctx.beginPath(); ctx.roundRect(4, 4, CW - 8, CH - 8, 20); ctx.stroke();
 
     // Anatomy name
     ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 40px "Barlow Condensed", Arial, sans-serif';
-    ctx.fillText(a.name.toUpperCase(), 22, 50);
+    ctx.font = 'bold 76px "Barlow Condensed", Arial, sans-serif';
+    ctx.fillText(a.name.toUpperCase(), 40, 96);
 
     // Divider
     ctx.strokeStyle = 'rgba(232, 35, 58, 0.28)';
-    ctx.lineWidth   = 0.8;
-    ctx.beginPath(); ctx.moveTo(22, 64); ctx.lineTo(CW - 22, 64); ctx.stroke();
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath(); ctx.moveTo(40, 120); ctx.lineTo(CW - 40, 120); ctx.stroke();
 
     // Body text (word-wrap)
     ctx.fillStyle = 'rgba(200, 176, 184, 0.90)';
-    ctx.font      = '19px Inter, Arial, sans-serif';
+    ctx.font      = '36px Inter, Arial, sans-serif';
     const words = a.text.split(' ');
-    let ln = '', lineY = 92;
+    let ln = '', lineY = 172;
     for (const w of words) {
       const test = ln + w + ' ';
-      if (ctx.measureText(test).width > CW - 44 && ln !== '') {
-        ctx.fillText(ln.trimEnd(), 22, lineY);
-        ln = w + ' '; lineY += 28;
-        if (lineY > CH - 18) break;
+      if (ctx.measureText(test).width > CW - 80 && ln !== '') {
+        ctx.fillText(ln.trimEnd(), 40, lineY);
+        ln = w + ' '; lineY += 52;
+        if (lineY > CH - 36) break;
       } else { ln = test; }
     }
-    if (ln) ctx.fillText(ln.trimEnd(), 22, lineY);
+    if (ln) ctx.fillText(ln.trimEnd(), 40, lineY);
 
     const tex = new THREE.CanvasTexture(cv);
     const geo = new THREE.PlaneGeometry(2.8, 1.58);
