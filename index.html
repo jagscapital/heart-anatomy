@@ -2529,190 +2529,346 @@ let lastEnvIdx   = -1;          // tracks previous segment index for boundary mi
 const coordTL      = document.getElementById('coord-tl');      // HUD top-left — updates per segment
 const frostOverlay = document.getElementById('frost-overlay'); // cached — avoid getElementById in hot path
 
-const SCROLL_PX = window.innerHeight * (IS_MOBILE ? 4 : 7);
+const SCROLL_PX = window.innerHeight * (IS_MOBILE ? 8 : 14);
 const N         = anatomy.length;
 const DWELL     = 1.0 / N;
 
 // ============================================================
 //  HEART ASSEMBLY SYSTEM
-//  Six procedural meshes — one per anatomy segment — scatter in
-//  world space and physically fly together during Finale Stage 1.
-//  Their assembled positions match the anatomy worldOffset values
-//  scaled to world units. The main FBX heart is hidden during
-//  assembly and crossfades back in when segments reach target.
+//  Six organic segment meshes that physically fly from world-scatter
+//  positions into anatomical assembled positions during Finale Stage 1.
+//  Segments ARE the heart from Stage 1 onward — no FBX handoff.
+//  Geometries: LatheGeometry for ventricles/atria (organic deformation),
+//  TubeGeometry for vessels (true anatomical arch paths).
+//  Materials: heartMat-quality (clearcoat + sheen + fresnel rim glow).
 // ============================================================
+
+// Organic vertex deformation — adds biological surface noise to any geometry.
+// Uses product of sin/cos waves along each axis — smooth, non-periodic.
+function _organicDeform(geo, strength, seed) {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const len = Math.sqrt(x*x + y*y + z*z) + 1e-6;
+    const n = (Math.sin(x * 6.1 + seed + 1.1) * Math.cos(y * 7.3 + seed)
+             + Math.cos(z * 5.8 + seed + 2.2) * Math.sin(y * 8.2 + seed)) * strength;
+    pos.setXYZ(i, x + (x/len)*n, y + (y/len)*n, z + (z/len)*n);
+  }
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  return geo;
+}
+
+let segmentsAssembled = false; // flips true after Stage 1 completes
+
 (function buildHeartAssembly() {
-  // anatomical assembled positions = worldOffset * HEART_BASE_SCALE
-  // (world space with heartGroup.rotation.y ≈ 0 during finale)
+  // Shared fresnel callback — biological organ rim glow (same formula as heartMat)
+  const fresnelCB = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      float sfDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
+      float sfRim = pow(1.0 - sfDot, 3.8);
+      gl_FragColor.rgb += sfRim * vec3(1.0, 0.08, 0.18) * 0.30;`
+    );
+  };
+
+  const mkSegMat = (col) => {
+    const m = new THREE.MeshPhysicalMaterial({
+      color:              new THREE.Color(col),
+      emissive:           new THREE.Color(col).multiplyScalar(0.14),
+      roughness:          0.32,
+      metalness:          0.0,
+      clearcoat:          0.68,
+      clearcoatRoughness: 0.05,
+      sheen:              0.24,
+      sheenRoughness:     0.60,
+      sheenColor:         new THREE.Color(0xff2244),
+      envMapIntensity:    3.0,
+      transparent:        true,
+      opacity:            0.0,
+      depthWrite:         false,
+    });
+    m.onBeforeCompile = fresnelCB;
+    return m;
+  };
+
+  // ── LEFT VENTRICLE: LatheGeometry bullet/pear — dominant chamber ──
+  // Profile: wide at base (top), tapers smoothly to rounded apex (bottom)
+  const lvProf = [];
+  for (let i = 0; i <= 24; i++) {
+    const t = i / 24;
+    const r = Math.sin(t * Math.PI * 0.84) * 0.36 * (1.0 - t * 0.22);
+    lvProf.push(new THREE.Vector2(r, 0.48 - t * 0.96));
+  }
+  const lvGeo = _organicDeform(new THREE.LatheGeometry(lvProf, 22), 0.013, 1.1);
+
+  // ── RIGHT VENTRICLE: flattened sphere — crescent wrapping LV ────
+  const rvGeo = (() => {
+    const g = new THREE.SphereGeometry(0.27, 20, 14);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      pos.setZ(i, pos.getZ(i) * 0.60);
+      pos.setX(i, pos.getX(i) * 1.20);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    return _organicDeform(g, 0.011, 2.2);
+  })();
+
+  // ── LEFT ATRIUM: low-profile flattened sphere — posterior-left ──
+  const laGeo = (() => {
+    const g = new THREE.SphereGeometry(0.21, 16, 12);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      pos.setY(i, pos.getY(i) * 0.68);
+      pos.setX(i, pos.getX(i) * 1.14);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    return _organicDeform(g, 0.009, 3.3);
+  })();
+
+  // ── RIGHT ATRIUM: similar profile, slightly different aspect ────
+  const raGeo = (() => {
+    const g = new THREE.SphereGeometry(0.22, 16, 12);
+    const pos = g.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      pos.setY(i, pos.getY(i) * 0.70);
+      pos.setZ(i, pos.getZ(i) * 0.78);
+    }
+    pos.needsUpdate = true;
+    g.computeVertexNormals();
+    return _organicDeform(g, 0.009, 4.4);
+  })();
+
+  // ── AORTA: TubeGeometry — anatomical arch curving up and left ───
+  const aortaGeo = new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3( 0.00, 0.00, 0.04),
+      new THREE.Vector3(-0.04, 0.14, 0.06),
+      new THREE.Vector3(-0.14, 0.30, 0.08),
+      new THREE.Vector3(-0.22, 0.42, 0.09),
+    ]), 20, 0.074, 9, false
+  );
+
+  // ── PULMONARY ARTERY: TubeGeometry — curves up and right to lungs
+  const paGeo = new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3( 0.00, 0.00, 0.04),
+      new THREE.Vector3( 0.07, 0.11, 0.06),
+      new THREE.Vector3( 0.18, 0.24, 0.08),
+      new THREE.Vector3( 0.28, 0.33, 0.08),
+    ]), 18, 0.064, 8, false
+  );
+
+  const HBS = HEART_BASE_SCALE;
   const segDefs = [
     {
-      id:       'aorta',
-      color:    0xff2244,
-      geo:      new THREE.CylinderGeometry(0.072, 0.092, 0.58, 10),
-      assembled: new THREE.Vector3(-0.22 * HEART_BASE_SCALE, 1.20 * HEART_BASE_SCALE,  0.35 * HEART_BASE_SCALE),
-      scatter:   new THREE.Vector3(-13, 14, 0),
-    },
-    {
-      id:       'pulmonary-artery',
-      color:    0xee3355,
-      geo:      new THREE.CylinderGeometry(0.062, 0.078, 0.50, 10),
-      assembled: new THREE.Vector3( 0.42 * HEART_BASE_SCALE, 0.85 * HEART_BASE_SCALE,  0.28 * HEART_BASE_SCALE),
-      scatter:   new THREE.Vector3( 14, 12, 0),
-    },
-    {
-      id:       'left-atrium',
-      color:    0xcc1144,
-      geo:      new THREE.SphereGeometry(0.21, 12, 9),
-      assembled: new THREE.Vector3(-0.55 * HEART_BASE_SCALE, 0.55 * HEART_BASE_SCALE, -0.35 * HEART_BASE_SCALE),
-      scatter:   new THREE.Vector3(-15, 11, 0),
-    },
-    {
-      id:       'right-atrium',
-      color:    0xbb1135,
-      geo:      new THREE.SphereGeometry(0.22, 12, 9),
-      assembled: new THREE.Vector3( 0.52 * HEART_BASE_SCALE, 0.52 * HEART_BASE_SCALE, -0.42 * HEART_BASE_SCALE),
-      scatter:   new THREE.Vector3( 15, 10, 0),
-    },
-    {
-      id:       'left-ventricle',
-      color:    0xff1133,
-      // Cone points down — apex of left ventricle
-      geo:      (function() { const g = new THREE.ConeGeometry(0.30, 0.88, 11); g.rotateX(Math.PI); return g; })(),
-      assembled: new THREE.Vector3(-0.55 * HEART_BASE_SCALE, -0.88 * HEART_BASE_SCALE,  0.25 * HEART_BASE_SCALE),
+      geo:      lvGeo,    mat: mkSegMat(0xff1133),
+      assembled: new THREE.Vector3(-0.28 * HBS, -0.48 * HBS,  0.18 * HBS),
       scatter:   new THREE.Vector3(-14, -13, 0),
     },
     {
-      id:       'right-ventricle',
-      color:    0xdd1022,
-      geo:      new THREE.SphereGeometry(0.24, 12, 8),
-      assembled: new THREE.Vector3( 0.58 * HEART_BASE_SCALE, -0.72 * HEART_BASE_SCALE,  0.42 * HEART_BASE_SCALE),
+      geo:      rvGeo,    mat: mkSegMat(0xee2244),
+      assembled: new THREE.Vector3( 0.35 * HBS, -0.40 * HBS,  0.32 * HBS),
       scatter:   new THREE.Vector3( 15, -12, 0),
+    },
+    {
+      geo:      laGeo,    mat: mkSegMat(0xcc1144),
+      assembled: new THREE.Vector3(-0.52 * HBS,  0.38 * HBS, -0.26 * HBS),
+      scatter:   new THREE.Vector3(-15, 11, 0),
+    },
+    {
+      geo:      raGeo,    mat: mkSegMat(0xbb1135),
+      assembled: new THREE.Vector3( 0.45 * HBS,  0.36 * HBS, -0.30 * HBS),
+      scatter:   new THREE.Vector3( 15, 10, 0),
+    },
+    {
+      geo:      aortaGeo, mat: mkSegMat(0xff3355),
+      assembled: new THREE.Vector3(-0.14 * HBS,  0.60 * HBS,  0.04 * HBS),
+      scatter:   new THREE.Vector3(-13, 14, 0),
+    },
+    {
+      geo:      paGeo,    mat: mkSegMat(0xee2244),
+      assembled: new THREE.Vector3( 0.08 * HBS,  0.62 * HBS,  0.04 * HBS),
+      scatter:   new THREE.Vector3( 14, 12, 0),
     },
   ];
 
   segDefs.forEach(def => {
-    const mat = new THREE.MeshPhysicalMaterial({
-      color:             new THREE.Color(def.color),
-      emissive:          new THREE.Color(def.color),
-      emissiveIntensity: 0.55,
-      roughness:         0.30,
-      metalness:         0.04,
-      transparent:       true,
-      opacity:           0.0,  // starts invisible — made visible in finale onEnter
-      depthWrite:        false,
-    });
-    const mesh = new THREE.Mesh(def.geo, mat);
+    const mesh = new THREE.Mesh(def.geo, def.mat);
     mesh.position.copy(def.scatter);
     mesh.visible = false;
     scene.add(mesh);
-    heartSegMeshes.push({ mesh, mat, assembledPos: def.assembled.clone(), scatterPos: def.scatter.clone() });
+    heartSegMeshes.push({ mesh, mat: def.mat, assembledPos: def.assembled.clone(), scatterPos: def.scatter.clone() });
   });
 })();
 
 // ============================================================
-//  HUMAN FIGURE  (procedural low-poly)
-//  Revealed in Stages 4-5. Heart glows inside the chest.
-//  Canvas face texture: eyes + smile drawn at init time.
-//  thumbsUpGroup: right arm — rotated by GSAP at Stage 5.
+//  HUMAN FIGURE  (medical visualization — holographic style)
+//  Revealed in Stages 4-5. Heart glows through semi-transparent chest.
+//  Aesthetic: warm anatomical tone, fresnel blue-white rim glow at
+//  body edges — reads as a medical scan / biological hologram.
+//  Organic body shapes via LatheGeometry — not primitive cylinders.
+//  Torso especially transparent so the beating heart shows through.
 // ============================================================
 (function buildHumanFigure() {
   humanGroup = new THREE.Group();
-  humanGroup.position.set(0, -1.0, 0); // chest at y≈+0.5 world — heart is inside
+  humanGroup.position.set(0, -1.0, 0);
   humanGroup.scale.setScalar(4.2);
   humanGroup.visible = false;
   scene.add(humanGroup);
 
-  // ── Face canvas texture (smile drawn once) ──────────────
+  // ── Face canvas — warm natural expression ───────────────────
   const fc = document.createElement('canvas');
   fc.width = 256; fc.height = 256;
-  const x = fc.getContext('2d');
-  // Skin base
-  x.fillStyle = '#f5c59e';
-  x.beginPath(); x.arc(128, 128, 128, 0, Math.PI * 2); x.fill();
+  const ctx = fc.getContext('2d');
+  ctx.fillStyle = '#e8c9a8';
+  ctx.beginPath(); ctx.arc(128, 128, 124, 0, Math.PI * 2); ctx.fill();
   // Eyes
-  x.fillStyle = '#1a1008';
-  x.beginPath(); x.arc(88,  96, 14, 0, Math.PI * 2); x.fill();
-  x.beginPath(); x.arc(168, 96, 14, 0, Math.PI * 2); x.fill();
-  // Eye whites (glint)
-  x.fillStyle = '#fff';
-  x.beginPath(); x.arc(93, 90, 5, 0, Math.PI * 2); x.fill();
-  x.beginPath(); x.arc(173, 90, 5, 0, Math.PI * 2); x.fill();
-  // Smile arc
-  x.strokeStyle = '#1a1008'; x.lineWidth = 7; x.lineCap = 'round';
-  x.beginPath(); x.arc(128, 116, 52, 0.25, Math.PI - 0.25); x.stroke();
-  // Blush cheeks
-  x.fillStyle = 'rgba(255,90,70,0.22)';
-  x.beginPath(); x.ellipse(68, 138, 30, 20, -0.3, 0, Math.PI * 2); x.fill();
-  x.beginPath(); x.ellipse(188, 138, 30, 20,  0.3, 0, Math.PI * 2); x.fill();
+  [85, 171].forEach((ex, ei) => {
+    ctx.fillStyle = '#2a1608'; ctx.beginPath(); ctx.ellipse(ex, 104, 16, 13, ei?0.08:-0.08, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#5a3018'; ctx.beginPath(); ctx.ellipse(ex, 104, 10, 9,  ei?0.08:-0.08, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#100808'; ctx.beginPath(); ctx.ellipse(ex, 104,  6, 6,  0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(ex+5, 99, 4, 0, Math.PI*2); ctx.fill();
+  });
+  // Nose bridge
+  ctx.strokeStyle = 'rgba(160,100,60,0.25)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(122, 118); ctx.quadraticCurveTo(115, 136, 122, 148); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(134, 118); ctx.quadraticCurveTo(141, 136, 134, 148); ctx.stroke();
+  // Smile — warm arc
+  ctx.strokeStyle = '#7a3828'; ctx.lineWidth = 8; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(128, 128, 46, 0.22, Math.PI - 0.22); ctx.stroke();
+  // Blush
+  ctx.fillStyle = 'rgba(210,80,50,0.16)';
+  ctx.beginPath(); ctx.ellipse(60, 150, 32, 21, -0.2, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(196, 150, 32, 21,  0.2, 0, Math.PI*2); ctx.fill();
   const faceTex = new THREE.CanvasTexture(fc);
 
-  // ── Materials (all start transparent — finale fades them in) ──
-  const mkMat = (c, opts = {}) => {
+  // ── Material factory — medical hologram aesthetic ────────────
+  // Blue-white fresnel rim at silhouette edges = biological scan look.
+  // All materials start at opacity:0 and batch-reveal in Stage 4.
+  const rimCB = (shader) => {
+    shader.fragmentShader = shader.fragmentShader.replace(
+      '#include <dithering_fragment>',
+      `#include <dithering_fragment>
+      float hFDot = max(dot(normalize(vNormal), normalize(vViewPosition)), 0.0);
+      float hRim  = pow(1.0 - hFDot, 3.0);
+      gl_FragColor.rgb += hRim * vec3(0.45, 0.70, 1.0) * 0.38;`
+    );
+  };
+  const mkMat = (color, opts = {}) => {
     const m = new THREE.MeshPhysicalMaterial({
-      color: c, roughness: 0.85, transparent: true, opacity: 0, ...opts,
+      color, roughness: 0.78, metalness: 0.0,
+      envMapIntensity: 0.5, transparent: true, opacity: 0, ...opts,
     });
+    m.onBeforeCompile = rimCB;
     humanMats.push(m);
     return m;
   };
-  const skinMat  = mkMat(0xf5c59e);
-  const faceMat  = mkMat(0xffffff, { map: faceTex, roughness: 0.85 });
-  const shirtMat = mkMat(0x1e40af); // deep blue t-shirt
-  const pantsMat = mkMat(0x1c1c2e); // dark trousers
-  const hairMat  = mkMat(0x3d2b1a); // dark brown hair
-  const shoeMat  = mkMat(0x0a0a0a); // black shoes
+  const skinMat  = mkMat(new THREE.Color(0xf0c8a0));
+  const faceMat  = mkMat(new THREE.Color(0xffffff), { map: faceTex, roughness: 0.80 });
+  // Torso: higher transparency so heart glows through the chest wall
+  const shirtMat = mkMat(new THREE.Color(0x1e3a6e));
+  const torsoMat = mkMat(new THREE.Color(0xdcb890), { roughness: 0.72 });
+  const pantsMat = mkMat(new THREE.Color(0x1e2238));
+  const hairMat  = mkMat(new THREE.Color(0x2a1a0e));
+  const shoeMat  = mkMat(new THREE.Color(0x0c0808));
 
-  const add = (geo, mat, px, py, pz, rx = 0, ry = 0, rz = 0, parent = humanGroup) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.set(px, py, pz);
-    m.rotation.set(rx, ry, rz);
-    parent.add(m);
-    return m;
+  // Store per-material reveal targets (so torso stays more transparent)
+  skinMat.userData.maxOp  = 0.90;
+  faceMat.userData.maxOp  = 0.92;
+  shirtMat.userData.maxOp = 0.80;
+  torsoMat.userData.maxOp = 0.50; // semi-transparent chest — heart shows through
+  pantsMat.userData.maxOp = 0.85;
+  hairMat.userData.maxOp  = 0.92;
+  shoeMat.userData.maxOp  = 0.88;
+
+  const add = (geo, mat, px, py, pz, rx=0, ry=0, rz=0, parent=humanGroup) => {
+    const m = new THREE.Mesh(geo, mat); m.position.set(px,py,pz); m.rotation.set(rx,ry,rz);
+    parent.add(m); return m;
   };
 
-  // Head — face texture on front hemisphere (+Z)
-  add(new THREE.SphereGeometry(0.22, 16, 12), faceMat, 0, 0.92, 0);
-  // Hair — top cap
-  add(new THREE.SphereGeometry(0.235, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat, 0, 0.97, -0.02);
-  // Neck
-  add(new THREE.CylinderGeometry(0.070, 0.085, 0.16, 10), skinMat, 0, 0.745, 0);
-  // Torso (shirt)
-  add(new THREE.CylinderGeometry(0.190, 0.172, 0.56, 10), shirtMat, 0, 0.36, 0);
-  // Hip/waist (trousers)
-  add(new THREE.CylinderGeometry(0.172, 0.190, 0.22, 10), pantsMat, 0, 0.02, 0);
+  // ── HEAD ─────────────────────────────────────────────────────
+  add(new THREE.SphereGeometry(0.195, 22, 16), faceMat, 0, 0.93, 0.03);
+  add(new THREE.SphereGeometry(0.208, 16, 10, 0, Math.PI*2, 0, Math.PI*0.54), hairMat, 0, 0.97, -0.01);
 
-  // Left arm (natural hang — shirt sleeve + forearm skin)
-  const lArmG = new THREE.Group();
-  lArmG.position.set(-0.255, 0.555, 0);
-  lArmG.rotation.z = 0.14; // slightly outward
-  humanGroup.add(lArmG);
-  add(new THREE.CylinderGeometry(0.054, 0.047, 0.38, 8), shirtMat, 0, -0.190, 0, 0, 0, 0, lArmG);
-  add(new THREE.CylinderGeometry(0.040, 0.035, 0.32, 8), skinMat,  0, -0.570, 0, 0, 0, 0, lArmG);
-  add(new THREE.SphereGeometry(0.046, 8, 6),              skinMat,  0, -0.775, 0, 0, 0, 0, lArmG);
+  // ── NECK ─────────────────────────────────────────────────────
+  add(new THREE.CylinderGeometry(0.074, 0.088, 0.15, 10), skinMat, 0, 0.758, 0);
 
-  // Right arm — thumbsUpGroup (GSAP-animated to raised position at Stage 5)
-  thumbsUpGroup = new THREE.Group();
-  thumbsUpGroup.position.set(0.255, 0.555, 0);
-  thumbsUpGroup.rotation.z = -0.14; // natural hang (z rotation from vertical)
-  humanGroup.add(thumbsUpGroup);
-  add(new THREE.CylinderGeometry(0.054, 0.047, 0.38, 8), shirtMat, 0, -0.190, 0, 0, 0, 0, thumbsUpGroup);
-  add(new THREE.CylinderGeometry(0.040, 0.035, 0.32, 8), skinMat,  0, -0.570, 0, 0, 0, 0, thumbsUpGroup);
-  // Fist
-  const fistG = new THREE.Group();
-  fistG.position.set(0, -0.775, 0);
-  thumbsUpGroup.add(fistG);
-  add(new THREE.BoxGeometry(0.090, 0.098, 0.076), skinMat, 0, 0, 0, 0, 0, 0, fistG);
-  // Thumb — extends along local +Y, points upward when arm is raised
-  add(new THREE.CylinderGeometry(0.021, 0.018, 0.115, 7), skinMat, 0.062, 0.044, 0, 0, 0, -0.18, fistG);
+  // ── TORSO — LatheGeometry: shoulder-chest-waist-hip profile ──
+  // Heart (world y=0) maps to local y=(0-(-1.0))/4.2=0.238 = inside this torso.
+  (() => {
+    const prof = [];
+    for (let i = 0; i <= 20; i++) {
+      const t = i / 20;
+      let r;
+      if      (t < 0.10) r = 0.18 + t / 0.10 * 0.055;    // shoulder ramp
+      else if (t < 0.48) r = 0.235 - (t-0.10)/0.38 * 0.048; // chest→waist
+      else if (t < 0.66) r = 0.187 - (t-0.48)/0.18 * 0.012; // waist
+      else               r = 0.175 + (t-0.66)/0.34 * 0.052;  // hip flare
+      prof.push(new THREE.Vector2(r, 0.330 - t * 0.660));
+    }
+    const torsoGeo = new THREE.LatheGeometry(prof, 20);
+    add(torsoGeo, shirtMat, 0, 0.36, 0);
+    // Inner skin layer — thinner, gives the chest translucency for heart glow
+    const innerGeo = torsoGeo.clone();
+    const ip = innerGeo.attributes.position;
+    for (let i = 0; i < ip.count; i++) { ip.setX(i, ip.getX(i)*0.87); ip.setZ(i, ip.getZ(i)*0.87); }
+    ip.needsUpdate = true; innerGeo.computeVertexNormals();
+    add(innerGeo, torsoMat, 0, 0.36, 0);
+  })();
 
-  // Legs
-  const legGeo = new THREE.CylinderGeometry(0.076, 0.056, 0.60, 10);
-  add(legGeo, pantsMat, -0.10, -0.355, 0);
-  add(legGeo, pantsMat,  0.10, -0.355, 0);
+  // ── ARMS — LatheGeometry organic taper ──────────────────────
+  (() => {
+    const mkUpperArm = () => {
+      const p = []; for (let i=0;i<=10;i++) { const t=i/10; p.push(new THREE.Vector2(0.062-t*0.016, 0.19-t*0.38)); } return new THREE.LatheGeometry(p,10);
+    };
+    const mkForearm = () => {
+      const p = []; for (let i=0;i<=10;i++) { const t=i/10; p.push(new THREE.Vector2(0.048-t*0.015, 0.19-t*0.38)); } return new THREE.LatheGeometry(p,10);
+    };
+    const uaGeo = mkUpperArm();
+    const faGeo = mkForearm();
 
-  // Shoes
-  const shoeGeo = new THREE.BoxGeometry(0.145, 0.065, 0.210);
-  add(shoeGeo, shoeMat, -0.10, -0.685, 0.03);
-  add(shoeGeo, shoeMat,  0.10, -0.685, 0.03);
+    // Left arm
+    const lArmG = new THREE.Group();
+    lArmG.position.set(-0.262, 0.555, 0); lArmG.rotation.z = 0.12;
+    humanGroup.add(lArmG);
+    add(uaGeo, shirtMat, 0, 0, 0, 0,0,0, lArmG);
+    add(faGeo, skinMat,  0,-0.380, 0, 0,0,0, lArmG);
+    add(new THREE.SphereGeometry(0.044,10,8), skinMat, 0,-0.760, 0, 0,0,0, lArmG);
+
+    // Right arm — thumbsUpGroup
+    thumbsUpGroup = new THREE.Group();
+    thumbsUpGroup.position.set(0.262, 0.555, 0); thumbsUpGroup.rotation.z = -0.12;
+    humanGroup.add(thumbsUpGroup);
+    add(uaGeo, shirtMat, 0, 0, 0, 0,0,0, thumbsUpGroup);
+    add(faGeo, skinMat,  0,-0.380, 0, 0,0,0, thumbsUpGroup);
+    // Fist
+    const fistG = new THREE.Group(); fistG.position.set(0, -0.760, 0); thumbsUpGroup.add(fistG);
+    add(new THREE.BoxGeometry(0.090, 0.096, 0.076), skinMat, 0, 0, 0, 0,0,0, fistG);
+    add(new THREE.CylinderGeometry(0.021, 0.018, 0.112, 7), skinMat, 0.062, 0.044, 0, 0,0,-0.18, fistG);
+  })();
+
+  // ── LEGS — LatheGeometry thigh+calf taper ───────────────────
+  (() => {
+    const mkThigh = () => {
+      const p=[]; for(let i=0;i<=12;i++){const t=i/12;p.push(new THREE.Vector2(0.092-t*0.024,-t*0.34));}return new THREE.LatheGeometry(p,12);
+    };
+    const mkCalf = () => {
+      const p=[]; for(let i=0;i<=12;i++){const t=i/12;p.push(new THREE.Vector2(0.072-t*0.028,-t*0.30));}return new THREE.LatheGeometry(p,12);
+    };
+    const thGeo = mkThigh(), caGeo = mkCalf();
+    [-0.098, 0.098].forEach(xOff => {
+      add(thGeo, pantsMat, xOff, -0.08, 0);
+      add(caGeo, pantsMat, xOff, -0.42, 0);
+    });
+  })();
+
+  // ── SHOES ────────────────────────────────────────────────────
+  add(new THREE.BoxGeometry(0.140, 0.064, 0.208), shoeMat, -0.098, -0.726, 0.022);
+  add(new THREE.BoxGeometry(0.140, 0.064, 0.208), shoeMat,  0.098, -0.726, 0.022);
 })();
 
 function setupScroll() {
@@ -2823,23 +2979,24 @@ function setupScroll() {
     onEnter() {
       inSpiral = true;
       nav.classList.add('visible');
-      // Frost dissolve on entry — Igloo section-level transition (cached ref, not getElementById)
       frostOverlay.classList.add('active');
-      setTimeout(() => frostOverlay.classList.remove('active'), 500);
-      // HUD init — first segment state immediately (no one-frame stale "CARDIO ANATOMY" flash)
+      setTimeout(() => frostOverlay.classList.remove('active'), 700);
       if (coordTL) coordTL.innerHTML = `SYS · HRT-A1<br/>${anatomy[0].name.toUpperCase()}`;
-      // Snap camT to first segment's position so descent starts cleanly
-      // (avoids the camera snapping from hero z=6.8 to a random orbit point)
+      // Cinematic entry — camera pushes in dramatically to first anatomy position
       const first = anatomy[0].camPos;
-      camT.x = first.x;
-      camT.y = first.y;
-      camT.z = first.z;
-      // Start first segment's env atmosphere immediately
+      gsap.killTweensOf(camT);
+      gsap.to(camT, {
+        x: first.x, y: first.y, z: first.z,
+        duration: 1.4,
+        ease: 'power4.inOut',
+        overwrite: true,
+      });
       const [r, g, b, a] = anatomy[0].env.overlayRgba;
       envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
       rimLight.color.setHex(anatomy[0].env.rimColor);
       rimLight.intensity = anatomy[0].env.rimInt;
-      // Force first label visible immediately — prevents "skips first tab" on initial entry
+      // Set lastEnvIdx=0 immediately to prevent false boundary frost at p=0
+      lastEnvIdx = 0;
       showLabel(anatomy[0].id);
       setActivePDot(0);
     },
@@ -2857,15 +3014,12 @@ function setupScroll() {
       });
       hideAllLabels();
       nav.classList.remove('visible');
-      // Clear environment atmosphere
       envOverlay.style.backgroundColor = 'transparent';
       rimLight.color.setHex(0xff1133);
       rimLight.intensity = 1.8;
-      // Reset HUD + boundary tracker
       lastEnvIdx = -1;
       if (coordTL) coordTL.innerHTML = 'SYS · HRT-A1<br/>CARDIO ANATOMY';
-      camT.z = 9.5; camT.y = 0.4;
-      setTimeout(() => { if (!inSpiral && !inFacts) { camT.z = 7.5; camT.y = 0.0; } }, 800);
+      // Don't force camT here — finale owns the camera once spiral ends
     },
     onLeaveBack() {
       inSpiral = false;
@@ -3052,33 +3206,25 @@ const FINALE_SCROLL_PX = window.innerHeight * (IS_MOBILE ? 5 : 10);
 const finaleOverlayEl  = document.getElementById('finale-overlay');
 
 function _finaleCleanup(resetCam) {
-  // Hide all segment meshes
-  heartSegMeshes.forEach(s => {
-    s.mesh.visible = false;
-    s.mat.opacity  = 0;
-  });
-  // Restore main heart opacity (both surface + SSS)
+  heartSegMeshes.forEach(s => { s.mesh.visible = false; s.mat.opacity = 0; s.mesh.scale.setScalar(1); });
+  segmentsAssembled = false;
+  // Restore FBX heart (used outside finale)
   if (heartMat) heartMat.opacity = 1;
   if (sssMat)   sssMat.opacity   = 0.22;
-  // Hide human figure
   if (humanGroup) {
     humanGroup.visible = false;
     humanGroup.position.y = -1.0;
     humanMats.forEach(m => { m.opacity = 0; });
   }
-  // Reset thumbs-up
   if (thumbsUpGroup) {
     gsap.killTweensOf(thumbsUpGroup.rotation);
-    thumbsUpGroup.rotation.z = -0.14;
+    thumbsUpGroup.rotation.z = -0.12;
   }
-  thumbsUpDone = false;
-  // Reset rib brightness
-  ribMat.opacity = 0.62;
-  // Reset bloom
-  bloom.strength = 0.28;
-  finaleScale = 1.0;
+  thumbsUpDone    = false;
+  ribMat.opacity  = 0.62;
+  bloom.strength  = 0.28;
+  finaleScale     = 1.0;
   if (resetCam) { camT.z = 7.5; camT.y = 0.0; }
-  // Hide overlay
   finaleOverlayEl.style.visibility = 'hidden';
   Array.from(document.querySelectorAll('.finale-stage')).forEach(el => { el.style.opacity = '0'; });
 }
@@ -3086,19 +3232,33 @@ function _finaleCleanup(resetCam) {
 function setupFinale() {
   const stageEls = Array.from(document.querySelectorAll('.finale-stage'));
 
+  // Helper: update all assembled segments to match current finaleScale + beat
+  // Called every stage after assembly completes (Stage 2-5)
+  function _updateSegmentScale() {
+    const fs = finaleScale;
+    // Beat scale from heartGroup (heartbeatScale already ran this frame)
+    const beatScale = heartGroup.scale.x / HEART_BASE_SCALE; // includes beat factor
+    heartSegMeshes.forEach(s => {
+      s.mesh.visible = true;
+      s.mesh.position.copy(s.assembledPos).multiplyScalar(fs);
+      s.mesh.scale.setScalar(beatScale); // pulse with the heartbeat
+    });
+  }
+
   ScrollTrigger.create({
     trigger:    '#finale-section',
     start:      'top top',
     end:        `+=${FINALE_SCROLL_PX}`,
     pin:        true,
     pinSpacing: true,
-    scrub:      0.6,
+    scrub:      0.1,
 
     onEnter() {
-      inFinale    = true;
-      inSpiral    = false;
-      finaleScale = 1.0;
-      thumbsUpDone = false;
+      inFinale      = true;
+      inSpiral      = false;
+      finaleScale   = 1.0;
+      thumbsUpDone  = false;
+      segmentsAssembled = false;
       camT.x = 0;
 
       hideAllLabels();
@@ -3106,14 +3266,19 @@ function setupFinale() {
       envOverlay.style.backgroundColor = 'transparent';
       finaleOverlayEl.style.visibility = 'visible';
 
-      // ── Stage 1 setup: fade out FBX heart (heartMat + sssMat), reveal segment meshes ──
-      if (heartMat)  gsap.to(heartMat, { opacity: 0,    duration: 0.5, ease: 'power2.in' });
-      if (sssMat)    gsap.to(sssMat,   { opacity: 0,    duration: 0.5, ease: 'power2.in' });
+      // FBX heart hides permanently for the duration of the finale —
+      // assembled segments ARE the heart from this point forward.
+      gsap.killTweensOf(heartMat); gsap.killTweensOf(sssMat);
+      if (heartMat) heartMat.opacity = 0;
+      if (sssMat)   sssMat.opacity   = 0;
+
+      // Reveal segments at scatter positions — they will fly in via onUpdate
       heartSegMeshes.forEach(s => {
         s.mesh.position.copy(s.scatterPos);
+        s.mesh.scale.setScalar(0.1);
         s.mesh.visible = true;
         s.mat.opacity  = 0;
-        gsap.to(s.mat, { opacity: 0.90, duration: 0.55, ease: 'power2.out' });
+        gsap.to(s.mat, { opacity: 0.92, duration: 0.6, ease: 'power2.out' });
       });
     },
 
@@ -3127,134 +3292,117 @@ function setupFinale() {
       nav.classList.remove('visible');
       envOverlay.style.backgroundColor = 'transparent';
       finaleOverlayEl.style.visibility = 'visible';
+      if (heartMat) heartMat.opacity = 0;
+      if (sssMat)   sssMat.opacity   = 0;
     },
 
     onLeaveBack() {
       inFinale = false;
       _finaleCleanup(true);
+      // Restore FBX heart when leaving finale backward
+      if (heartMat) gsap.to(heartMat, { opacity: 1.0, duration: 0.4 });
+      if (sssMat)   gsap.to(sssMat,   { opacity: 0.22, duration: 0.4 });
     },
 
     onUpdate(self) {
       const p = self.progress;
 
       // ══════════════════════════════════════════════════
-      //  STAGE 1 (0–20%): HEART ASSEMBLY
-      //  Segments fly from scatter → assembled positions.
-      //  FBX heart is hidden. Crossfade at stage boundary.
+      //  STAGE 1 (0–20%): ASSEMBLY
+      //  Segments fly from world-scatter → assembled positions.
+      //  They materialize (scale 0→1) as they arrive.
+      //  Camera holds close so the viewer watches the assembly.
+      //  FBX heart stays at opacity 0 — segments ARE the heart.
       // ══════════════════════════════════════════════════
       if (p < 0.20) {
-        const t = p / 0.20;                              // 0..1 linear
-        const ease = t * t * (3.0 - 2.0 * t);           // smoothstep
+        const t    = p / 0.20;
+        const ease = t * t * (3.0 - 2.0 * t); // smoothstep
 
         heartSegMeshes.forEach(s => {
           s.mesh.position.lerpVectors(s.scatterPos, s.assembledPos, ease);
-          s.mesh.visible = true;
+          s.mesh.scale.setScalar(Math.max(0.08, ease)); // materialize as they arrive
         });
 
-        // FBX heart fades to 0 for first 40% of stage 1 then holds (both surface and SSS)
-        if (heartMat) heartMat.opacity = Math.max(0, 1.0 - t * 2.5);
-        if (sssMat)   sssMat.opacity   = Math.max(0, 0.22 * (1.0 - t * 2.5));
-
-        camT.z = 7.5;  // hold close — viewer watches assembly
+        camT.z = 7.5;
         camT.y = 0.0;
         finaleScale = 1.0;
-
-      // ══════════════════════════════════════════════════
-      //  STAGE 1→2 CROSSFADE (18–28%): segments fade out,
-      //  FBX heart fades back in at assembled position.
-      // ══════════════════════════════════════════════════
-      } else if (p < 0.28) {
-        const xf = (p - 0.18) / 0.10;                   // 0..1 crossfade window
-        const xfEase = xf * xf * (3.0 - 2.0 * xf);
-        heartSegMeshes.forEach(s => {
-          s.mat.opacity = Math.max(0, 0.90 * (1.0 - xfEase));
-          if (s.mat.opacity < 0.01) s.mesh.visible = false;
-        });
-        if (heartMat) heartMat.opacity = Math.min(1,    xfEase);
-        if (sssMat)   sssMat.opacity   = Math.min(0.22, 0.22 * xfEase);
-
-        camT.z = 7.5 + (p - 0.20) / 0.20 * 3.0;
-        camT.y = 0.0;
-        finaleScale = 1.0;
+        segmentsAssembled = false;
 
       // ══════════════════════════════════════════════════
       //  STAGE 2 (20–40%): INTEGRATION
-      //  Heart is fully revealed, begins growing.
-      //  Camera pulls back to z=10.5.
+      //  Assembly complete — segments ARE the assembled heart.
+      //  Heart grows (finaleScale 1.0→1.35), camera pulls back.
+      //  No FBX ever returns. Segments scale with beat.
       // ══════════════════════════════════════════════════
       } else if (p < 0.40) {
-        heartSegMeshes.forEach(s => { s.mesh.visible = false; });
-        if (heartMat) heartMat.opacity = 1;
-        if (sssMat)   sssMat.opacity   = 0.22;
-
+        segmentsAssembled = true;
         const s2 = (p - 0.20) / 0.20;
-        camT.z = 7.5  + s2 * 3.0;                       // 7.5 → 10.5
-        camT.y = 0.0;
         finaleScale = 1.0 + s2 * 0.35;                  // 1.0 → 1.35
+        camT.z = 7.5 + s2 * 3.0;                        // 7.5 → 10.5 (crosses rib wall ~9.5)
+        camT.y = 0.0;
+        _updateSegmentScale();
 
       // ══════════════════════════════════════════════════
       //  STAGE 3 (40–60%): RIBCAGE EXIT
-      //  Camera moves z=10.5→14.5, physically passing
+      //  Camera moves from z=10.5→14.5, physically passing
       //  through the existing 3D ribcage (radius 9.5u).
-      //  Ribs brighten as camera emerges outside.
+      //  No opacity simulation — geometry does the work.
+      //  Camera crosses the rib boundary at z≈9.5 in Stage 2;
+      //  Stage 3 continues the pullback to full exterior view.
       // ══════════════════════════════════════════════════
       } else if (p < 0.60) {
-        heartSegMeshes.forEach(s => { s.mesh.visible = false; });
-        if (heartMat) heartMat.opacity = 1;
-
+        segmentsAssembled = true;
         const s3 = (p - 0.40) / 0.20;
-        camT.z = 10.5 + s3 * 4.0;                       // 10.5 → 14.5 (exits rib radius ~9.5)
-        camT.y = 0.0  - s3 * 0.4;                       // slight down — chest sinks into frame
         finaleScale = 1.35 + s3 * 0.25;                 // 1.35 → 1.60
-        // Ribs become more visible as camera clears outside the cage
-        ribMat.opacity = 0.62 + s3 * 0.26;              // 0.62 → 0.88
+        camT.z = 10.5 + s3 * 4.0;                       // 10.5 → 14.5
+        camT.y = -s3 * 0.40;                             // slight downward tilt
+        _updateSegmentScale();
 
       // ══════════════════════════════════════════════════
       //  STAGE 4 (60–80%): HUMAN REVEAL
-      //  Procedural figure rises from y=-12 to y=-1.0.
-      //  Heart glows through semi-transparent chest.
-      //  Camera z=14.5→18.5, sees full body.
+      //  Full figure rises from below. Heart segments glow
+      //  through the semi-transparent (opacity 0.50) chest.
+      //  Camera z=14.5→18.5 — frames the full body.
       // ══════════════════════════════════════════════════
       } else if (p < 0.80) {
-        const s4 = (p - 0.60) / 0.20;
+        segmentsAssembled = true;
+        const s4     = (p - 0.60) / 0.20;
         const s4Ease = s4 * s4 * (3.0 - 2.0 * s4);
-
-        camT.z = 14.5 + s4 * 4.0;                       // 14.5 → 18.5
-        camT.y = -0.4 - s4 * 1.1;                       // -0.4 → -1.5 (frame the body)
         finaleScale = 1.60 + s4 * 0.20;                 // 1.60 → 1.80
-        ribMat.opacity = Math.max(0.62, 0.88 - s4 * 0.26);
+        camT.z = 14.5 + s4 * 4.0;                       // 14.5 → 18.5
+        camT.y = -0.40 - s4 * 1.10;                     // -0.4 → -1.5
+        _updateSegmentScale();
 
-        // Human figure rises from below into frame
         if (humanGroup) {
           humanGroup.visible = true;
           humanGroup.position.y = THREE.MathUtils.lerp(-12, -1.0, s4Ease);
-          const humanOpacity = Math.min(0.88, s4Ease * 1.2);
-          humanMats.forEach(m => { m.opacity = Math.max(0, humanOpacity); });
+          humanMats.forEach(m => {
+            const target = m.userData.maxOp ?? 0.88;
+            m.opacity = Math.max(0, Math.min(target, s4Ease * (target + 0.15)));
+          });
         }
 
       // ══════════════════════════════════════════════════
       //  STAGE 5 (80–100%): ALWAYS BEATING
-      //  Full figure in frame. Right arm raises to thumbs-up.
-      //  Massive type overlay. Bloom crescendo peaks.
-      //  Camera z=18.5→22.
+      //  Full figure. Arm raises to thumbs-up.
+      //  Bloom crescendo peaks. Camera z=18.5→22.
       // ══════════════════════════════════════════════════
       } else {
+        segmentsAssembled = true;
         const s5 = (p - 0.80) / 0.20;
-
+        finaleScale = 1.80;
         camT.z = 18.5 + s5 * 3.5;                       // 18.5 → 22.0
         camT.y = -1.5;
-        finaleScale = 1.80;
+        _updateSegmentScale();
 
         if (humanGroup) {
           humanGroup.visible = true;
           humanGroup.position.y = -1.0;
-          humanMats.forEach(m => { m.opacity = 0.92; });
+          humanMats.forEach(m => { m.opacity = m.userData.maxOp ?? 0.88; });
         }
 
-        // Thumbs-up: fires once at ~20% into stage 5
         if (s5 >= 0.20 && !thumbsUpDone && thumbsUpGroup) {
           thumbsUpDone = true;
-          // Arm raises from natural hang (z=-0.14) to raised thumbs-up (z=+2.67 rad ≈ 153°)
           gsap.to(thumbsUpGroup.rotation, {
             z: Math.PI * 0.85,
             duration: 0.85,
@@ -3263,21 +3411,19 @@ function setupFinale() {
         }
       }
 
-      // ══════════════════════════════════════════════════
-      //  SHARED: bloom crescendo + stage text overlays
-      // ══════════════════════════════════════════════════
-      bloom.strength = 0.28 + p * 0.82;                 // 0.28 → 1.10
+      // ── Bloom crescendo: 0.28 at start → 1.10 at end ────────
+      bloom.strength = 0.28 + p * 0.82;
 
+      // ── Stage text overlays ─────────────────────────────────
       stageEls.forEach((el, i) => {
         const sStart = i * 0.20;
-        const sEnd   = sStart + 0.20;
         const isLast = i === stageEls.length - 1;
         let alpha = 0;
-        if (p >= sStart && (isLast || p <= sEnd)) {
+        if (p >= sStart && (isLast || p <= sStart + 0.20)) {
           const loc = Math.min(1, (p - sStart) / 0.20);
-          if      (loc < 0.10)           { alpha = loc / 0.10; }
-          else if (!isLast && loc > 0.88){ alpha = (1.0 - loc) / 0.12; }
-          else                           { alpha = 1.0; }
+          if      (loc < 0.10)                { alpha = loc / 0.10; }
+          else if (!isLast && loc > 0.88)     { alpha = (1.0 - loc) / 0.12; }
+          else                                { alpha = 1.0; }
         }
         el.style.opacity = Math.max(0, Math.min(1, alpha));
       });
@@ -3521,10 +3667,24 @@ let chromaVelocity = 0;
       heartGroup.rotation.x = Math.max(-0.20, Math.min(0.12, mouseParaY * -1 + floatY));
     }
     if (inFinale) {
-      // Finale: heart returns to face-forward orientation (assembly needs it stationary)
       heartGroup.rotation.y = THREE.MathUtils.damp(heartGroup.rotation.y, 0,     2.2, dt);
       heartGroup.rotation.x = THREE.MathUtils.damp(heartGroup.rotation.x, -0.04, 2.2, dt);
       heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, 0,     2.2, dt);
+
+      // Slowly rotate assembled segments once assembly is done — prevents static look
+      if (segmentsAssembled) {
+        const slowSpin = elapsed * 0.18; // ~10s per revolution
+        heartSegMeshes.forEach(s => {
+          if (!s.mesh.visible) return;
+          // Rotate each segment around the world Y axis (simulate heartGroup rotation)
+          const ap = s.assembledPos;
+          const cos = Math.cos(slowSpin), sin = Math.sin(slowSpin);
+          const rx  = ap.x * cos - ap.z * sin;
+          const rz  = ap.x * sin + ap.z * cos;
+          const fs  = finaleScale;
+          s.mesh.position.set(rx * fs, ap.y * fs, rz * fs);
+        });
+      }
     }
     if (!iglooAnimating) heartbeatScale(dt);
   }
