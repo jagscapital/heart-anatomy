@@ -2270,7 +2270,7 @@ new FBXLoader().load(
       iglooBlocks.forEach(b => b.material.dispose());
     }, 3.0);
 
-    gsap.to(camT, { z: 7.5, duration: 2.8, ease: 'power2.out', delay: 0.4 });
+    gsap.to(camT, { z: 7.5, duration: 2.8, ease: 'power2.out', delay: 0.4, overwrite: true });
 
     setTimeout(() => {
       // ✅ DOM VALIDATION: Check loading screen exists
@@ -3466,7 +3466,7 @@ function setupFactsSection() {
         rotateY: current + delta,
         duration: 0.55,
         ease: 'power2.inOut',
-        overwrite: 'auto',
+        overwrite: true,
       });
     }
   }
@@ -3483,7 +3483,7 @@ function setupFactsSection() {
       y: idx * STAIR_STEP,
       duration: 0.55,
       ease: 'power2.inOut',
-      overwrite: 'auto',
+      overwrite: true,
     });
     cardEls.forEach((card, i) => card.classList.toggle('active', i === idx));
     const counterEl = document.getElementById('facts-counter');
@@ -3725,7 +3725,7 @@ function setupFinale() {
         s.mesh.scale.setScalar(0.1);
         s.mesh.visible = true;
         s.mat.opacity  = 0;
-        gsap.to(s.mat, { opacity: 0.92, duration: 0.6, ease: 'power2.out' });
+        gsap.to(s.mat, { opacity: 0.92, duration: 0.6, ease: 'power2.out', overwrite: true });
       });
     },
 
@@ -3747,8 +3747,8 @@ function setupFinale() {
       inFinale = false;
       _finaleCleanup(true);
       // Restore FBX heart when leaving finale backward
-      if (heartMat) gsap.to(heartMat, { opacity: 1.0, duration: 0.4 });
-      if (sssMat)   gsap.to(sssMat,   { opacity: 0.22, duration: 0.4 });
+      if (heartMat) gsap.to(heartMat, { opacity: 1.0, duration: 0.4, overwrite: true });
+      if (sssMat)   gsap.to(sssMat,   { opacity: 0.22, duration: 0.4, overwrite: true });
     },
 
     onUpdate(self) {
@@ -3867,6 +3867,7 @@ function setupFinale() {
             z: Math.PI * 0.50,
             duration: 0.85,
             ease: 'back.out(1.3)',
+            overwrite: true,
           });
         }
       }
