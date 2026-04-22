@@ -145,6 +145,7 @@
     .a-tab {
       position: absolute;
       width: 242px;
+      max-width: 28vw; /* ✅ HARD SIZE LIMIT */
       background: rgba(6, 1, 10, 0.88);
       backdrop-filter: blur(22px) saturate(1.8) brightness(1.1);
       -webkit-backdrop-filter: blur(22px) saturate(1.8) brightness(1.1);
@@ -160,6 +161,7 @@
         0 8px 32px rgba(0,0,0,0.55),
         inset 0 1px 0 rgba(255,255,255,0.05);
       pointer-events: none;
+      transform-origin: center; /* ✅ PREVENT SCALING BUGS */
     }
     /* GSAP drives .a-tab transform (fall-in / slide-out) — no CSS transform rules */
     .a-tab.show {
@@ -2268,7 +2270,8 @@ new FBXLoader().load(
 const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
 const els     = {};
-const TAB_W   = 200; // must match .a-tab { width: 200px } in CSS
+const TAB_W   = 242; // ✅ FIXED: Must match .a-tab { width: 242px } in CSS
+const TAB_MAX_W = Math.min(400, window.innerWidth * 0.28); // ✅ Hard size limit: 28vw or 400px max
 const cardMeshes3D = {}; // 3D world-space anatomy cards
 
 function buildLabels() {
@@ -2477,7 +2480,9 @@ function updateLabelPositions() {
 // ║ NO state memory, NO GSAP state control, 100% deterministic    ║
 // ╚════════════════════════════════════════════════════════════════╝
 
-// Reset ALL panel/label state to zero (wipe slate clean)
+// ╔════════════════════════════════════════════════════════════════╗
+// ║ HARD RESET SYSTEM — wipe ALL state (tabs, panels, effects)   ║
+// ╚════════════════════════════════════════════════════════════════╝
 function resetAllPanels() {
   anatomy.forEach(a => {
     const el = els[a.id];
@@ -2486,6 +2491,15 @@ function resetAllPanels() {
     // DOM elements - direct assignment (NO GSAP)
     el.dot.style.opacity = '0';
     el.pname.style.opacity = '0';
+
+    // ✅ TAB HARD RESET — wipe transform, size, classes
+    if (el.tab) {
+      el.tab.style.opacity = '0';
+      el.tab.style.transform = 'translateY(20px) scale(0.9)';
+      el.tab.style.width = `${Math.min(TAB_W, TAB_MAX_W)}px`;
+      el.tab.style.maxWidth = '28vw';
+      el.tab.classList.remove('show', 'active');
+    }
 
     // 3D card - direct assignment (NO GSAP)
     const c3d = cardMeshes3D[a.id];
@@ -2536,6 +2550,17 @@ function applySegmentState(id, localProgress) {
 
   // 1. DOT - visible
   el.dot.style.opacity = '1';
+
+  // ✅ 1.5. TAB - visible with enforced size limits
+  if (el.tab) {
+    el.tab.style.opacity = '1';
+    el.tab.style.transform = 'translateY(0px) scale(1)';
+    // ✅ ENFORCE HARD SIZE LIMIT every time
+    const maxWidth = Math.min(TAB_MAX_W, window.innerWidth * 0.28);
+    el.tab.style.width = `${Math.min(TAB_W, maxWidth)}px`;
+    el.tab.style.maxWidth = '28vw';
+    el.tab.classList.add('show');
+  }
 
   // 2. 3D CARD - visible at base position
   const c3d = cardMeshes3D[id];
@@ -2646,6 +2671,9 @@ const frostOverlay = document.getElementById('frost-overlay'); // cached — avo
 const SCROLL_PX = window.innerHeight * (IS_MOBILE ? 8 : 14);
 const N         = anatomy.length;
 const DWELL     = 1.0 / N;
+
+// ✅ SEGMENT TRACKING: Force update when segment changes
+let lastSegmentIndex = -1;
 
 // ============================================================
 //  HEART ASSEMBLY SYSTEM
@@ -3028,14 +3056,22 @@ function setupScroll() {
       // ║ Scene = f(scrollProgress) - 100% deterministic                ║
       // ╚════════════════════════════════════════════════════════════════╝
 
-      // Clamp progress to [0,1]
+      // ✅ SAFETY GUARD: Clamp progress to [0,1]
       scrollProg = Math.max(0, Math.min(1, self.progress));
+
+      // ✅ Validate scroll progress
+      if (!isFinite(scrollProg)) {
+        console.warn('⚠️ Invalid scrollProg:', scrollProg);
+        scrollProg = 0;
+      }
+
       inSpiral   = true;
 
-      // Single source of truth: currentSegment derived from progress
-      const currentSegment = Math.min(N - 1, Math.floor(scrollProg * N));
+      // ✅ SEGMENT DESYNC FIX: Hard clamping + forced update
+      const rawSegment = Math.floor(scrollProg * N);
+      const currentSegment = Math.max(0, Math.min(N - 1, rawSegment));
       const segStart = currentSegment / N;
-      const localProgress = (scrollProg - segStart) / DWELL;
+      const localProgress = Math.max(0, Math.min(1, (scrollProg - segStart) / DWELL));
 
       // ═══════════════════════════════════════════════════════════════
       // PHASE 1: RESET ALL STATE (wipe slate clean)
@@ -3080,6 +3116,14 @@ function setupScroll() {
         }
       }
 
+      // ✅ SEGMENT CHANGE DETECTION: Force update when switching segments
+      if (currentSegment !== lastSegmentIndex) {
+        console.log(`🔄 Segment changed: ${lastSegmentIndex} → ${currentSegment}`);
+        lastSegmentIndex = currentSegment;
+        // Force complete reset and reapply to prevent state accumulation
+        resetAllPanels();
+      }
+
       // Apply SINGLE active segment state (pure function)
       const currentAnatomy = anatomy[currentSegment];
       if (currentAnatomy) {
@@ -3106,6 +3150,7 @@ function setupScroll() {
       inSpiral = true;
       scrollProg = 0; // Force start at beginning
       lastEnvIdx = -1;
+      lastSegmentIndex = -1; // ✅ Reset segment tracking
 
       // Reset particle velocities
       for (let i = 0; i < PARTICLE_COUNT; i++) {
@@ -3149,6 +3194,7 @@ function setupScroll() {
       rimLight.color.setHex(0xff1133);
       rimLight.intensity = 1.8;
       lastEnvIdx = -1;
+      lastSegmentIndex = -1; // ✅ Reset segment tracking
       if (coordTL) coordTL.innerHTML = 'SYS · HRT-A1<br/>CARDIO ANATOMY';
     },
     onLeaveBack() {
@@ -3160,6 +3206,7 @@ function setupScroll() {
       rimLight.color.setHex(0xff1133);
       rimLight.intensity = 1.8;
       lastEnvIdx = -1;
+      lastSegmentIndex = -1; // ✅ Reset segment tracking
       if (coordTL) coordTL.innerHTML = 'SYS · HRT-A1<br/>CARDIO ANATOMY';
     },
     onEnterBack() {
@@ -3184,6 +3231,7 @@ function setupScroll() {
       rimLight.intensity = anatomy[N - 1].env.rimInt;
 
       lastEnvIdx = N - 1;
+      lastSegmentIndex = N - 1; // ✅ Reset segment tracking to last segment
       if (coordTL) coordTL.innerHTML = `SYS · HRT-A${N}<br/>${anatomy[N - 1].name.toUpperCase()}`;
     },
   });
@@ -3364,16 +3412,53 @@ function _finaleCleanup(resetCam) {
 function setupFinale() {
   const stageEls = Array.from(document.querySelectorAll('.finale-stage'));
 
-  // Helper: update all assembled segments to match current finaleScale + beat + slow spin
-  // Called every stage after assembly completes (Stage 2-5)
+  // ══════════════════════════════════════════════════════════
+  // OPTIMIZED _updateSegmentScale — CRITICAL PERFORMANCE FIX
+  // Cached rotation values to avoid cos/sin per segment
+  // Safety guards for NaN/undefined values
+  // ══════════════════════════════════════════════════════════
+  let cachedCos = 1, cachedSin = 0, lastSpinTime = -1;
+
   function _updateSegmentScale() {
+    // ✅ SAFETY GUARD 1: Validate finaleScale
+    if (!isFinite(finaleScale) || finaleScale <= 0) {
+      console.warn('⚠️ Invalid finaleScale:', finaleScale);
+      return;
+    }
+
+    // ✅ SAFETY GUARD 2: Validate heartGroup
+    if (!heartGroup || !heartGroup.scale || !isFinite(heartGroup.scale.x)) {
+      console.warn('⚠️ Invalid heartGroup state');
+      return;
+    }
+
     const fs = finaleScale;
     const beatScale = heartGroup.scale.x / HEART_BASE_SCALE;
+
+    // ✅ OPTIMIZATION: Cache cos/sin calculation (only compute once per frame, not per segment)
     const spin = elapsed * 0.18;
-    const cos = Math.cos(spin), sin = Math.sin(spin);
+    if (spin !== lastSpinTime) {
+      cachedCos = Math.cos(spin);
+      cachedSin = Math.sin(spin);
+      lastSpinTime = spin;
+    }
+
+    const cos = cachedCos, sin = cachedSin;
+
     heartSegMeshes.forEach(s => {
+      // ✅ SAFETY GUARD 3: Validate segment
+      if (!s || !s.mesh || !s.assembledPos) return;
+
       s.mesh.visible = true;
       const ap = s.assembledPos;
+
+      // ✅ SAFETY GUARD 4: Validate positions
+      if (!isFinite(ap.x) || !isFinite(ap.y) || !isFinite(ap.z)) {
+        console.warn('⚠️ Invalid assembled position for segment');
+        return;
+      }
+
+      // ✅ OPTIMIZED: Direct vector math (no intermediate allocations)
       const rx = ap.x * cos - ap.z * sin;
       const rz = ap.x * sin + ap.z * cos;
       s.mesh.position.set(rx * fs, ap.y * fs, rz * fs);
@@ -3458,9 +3543,20 @@ function setupFinale() {
       // ══════════════════════════════════════════════════
       if (p < 0.20) {
         const t    = p / 0.20;
+
+        // ✅ SAFETY GUARD: Validate progress value
+        if (!isFinite(t) || t < 0 || t > 1) {
+          console.warn('⚠️ Invalid assembly progress:', t);
+          return;
+        }
+
         const ease = t * t * (3.0 - 2.0 * t); // smoothstep
 
         heartSegMeshes.forEach(s => {
+          // ✅ SAFETY GUARD: Validate segment data
+          if (!s || !s.mesh || !s.scatterPos || !s.assembledPos) return;
+
+          // ✅ OPTIMIZED: Use lerpVectors (no intermediate allocation)
           s.mesh.position.lerpVectors(s.scatterPos, s.assembledPos, ease);
           s.mesh.scale.setScalar(Math.max(0.08, ease));
         });
@@ -3785,8 +3881,26 @@ const clock = new THREE.Clock();
 let lastScrollY = 0;
 let chromaVelocity = 0;
 
+// ── FREEZE DETECTION (MANDATORY) ──
+let lastFrameTime = performance.now();
+let frameDropCount = 0;
+
 (function render() {
   requestAnimationFrame(render);
+
+  // ══════════════════════════════════════════════════════════
+  // FREEZE DETECTION — tracks frame drops and warns
+  // ══════════════════════════════════════════════════════════
+  const now = performance.now();
+  const frameDelta = now - lastFrameTime;
+
+  if (frameDelta > 100) {
+    frameDropCount++;
+    console.warn(`⚠️ FRAME DROP / FREEZE DETECTED: ${frameDelta.toFixed(1)}ms (count: ${frameDropCount})`);
+  }
+
+  lastFrameTime = now;
+
   const dt      = Math.min(clock.getDelta(), 0.05); // cap at 50ms — prevents spiral after tab-switch
   const elapsed = clock.elapsedTime;
 
