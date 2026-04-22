@@ -2385,8 +2385,15 @@ function buildAnatomyCards3D() {
     tex.generateMipmaps = false;
     tex.anisotropy = renderer.capabilities.maxAnisotropy; // anisotropic filtering instead
 
-    // IGLOO FIX: Geometry scaled to match canvas aspect (responsive to viewport)
-    const worldWidth = 2.0 * (targetWidthPx / 512); // scale from baseline 512px → 2.0 units
+    // IGLOO FIX: Properly calculate world size based on camera FOV and distance
+    // Camera FOV = 38°, panels at Z=3.8, camera at Z≈4.8 during spiral
+    const cameraDist = 1.2; // average distance from panel to camera
+    const fovRad = (38 * Math.PI) / 180; // convert FOV to radians
+    const visibleHeight = 2 * cameraDist * Math.tan(fovRad / 2);
+    const visibleWidth = visibleHeight * (window.innerWidth / window.innerHeight);
+
+    // Panel should be 28vw = 28% of visible screen width
+    const worldWidth = visibleWidth * maxCardWidthVw; // 0.28 of visible width
     const worldHeight = worldWidth * 0.5625;
     const geo = new THREE.PlaneGeometry(worldWidth, worldHeight);
     const mat = new THREE.MeshBasicMaterial({
@@ -2396,11 +2403,12 @@ function buildAnatomyCards3D() {
     const mesh = new THREE.Mesh(geo, mat);
     mesh.renderOrder = 10;
 
-    // World position: anatomy Y level, offset to side, between heart (z=0) and camera (z=5.5)
-    // X clamped dynamically so cards stay on-screen across all viewport widths (mobile-safe)
-    const aspect  = window.innerWidth / window.innerHeight;
-    const maxX    = Math.min(2.4, aspect * 1.6);
-    const sideX   = a.side === 'right' ? maxX : -maxX;
+    // World position: positioned to side but visible, not pushed off-screen
+    // Place at 55% from center (comfortably visible on all screens)
+    const aspect = window.innerWidth / window.innerHeight;
+    const halfVisibleWidth = visibleWidth / 2;
+    const maxX = halfVisibleWidth * 0.55; // 55% from center to edge
+    const sideX = a.side === 'right' ? maxX : -maxX;
     mesh.position.set(sideX, a.camPos.y, 3.8);
     mesh.visible = false;
     scene.add(mesh);
