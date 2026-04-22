@@ -290,7 +290,7 @@
       position: fixed;
       bottom: 28px;
       right: 28px;
-      z-index: 20;
+      z-index: 30;
       width: 44px; height: 44px;
       border-radius: 50%;
       background: rgba(5,5,10,0.75);
@@ -1938,7 +1938,14 @@ const BREATHE_PERIOD = 60 / 14;
     side:        THREE.DoubleSide,
   });
 
+  // ✅ LUNGS FBX LOADING TIMEOUT PROTECTION
+  let lungsLoadTimeout = setTimeout(() => {
+    console.warn('⚠️ TIMEOUT: lungs.fbx failed to load within 20 seconds (non-critical)');
+  }, 20000);
+
   new FBXLoader().load('./organs/lungs.fbx', function(fbx) {
+    // ✅ Clear timeout on successful load
+    clearTimeout(lungsLoadTimeout);
     const box = new THREE.Box3().setFromObject(fbx);
     const sz  = new THREE.Vector3(); box.getSize(sz);
     // Scale to 17 units wide — fills the back wall of the ribcage without
@@ -1959,7 +1966,11 @@ const BREATHE_PERIOD = 60 / 14;
     organGroup.add(lungsGroup);
   },
   undefined,
-  function(err) { console.warn('Lungs FBX:', err); });
+  function(err) {
+    // ✅ Clear timeout on error
+    clearTimeout(lungsLoadTimeout);
+    console.warn('Lungs FBX:', err);
+  });
 }
 
 // ============================================================
@@ -2007,9 +2018,23 @@ let thumbsUpGroup  = null; // right arm group — animated to raised thumbs-up a
 let thumbsUpDone   = false; // guard: fire GSAP only once per finale pass
 let humanMats      = [];   // all human material refs for batch opacity control
 
+// ✅ FBX LOADING TIMEOUT PROTECTION
+let heartLoadTimeout = setTimeout(() => {
+  console.error('⚠️ TIMEOUT: Heart.fbx failed to load within 30 seconds');
+  const loadPct = document.getElementById('load-pct');
+  if (loadPct) loadPct.textContent = 'Load timeout — check connection and refresh';
+  const ls = document.getElementById('loading-screen');
+  if (ls) {
+    ls.classList.add('out');
+    setTimeout(() => { ls.style.display = 'none'; }, 1000);
+  }
+}, 30000);
+
 new FBXLoader().load(
   './Heart.fbx',
   (fbx) => {
+    // ✅ Clear timeout on successful load
+    clearTimeout(heartLoadTimeout);
     const box  = new THREE.Box3().setFromObject(fbx);
     const ctr  = new THREE.Vector3();
     const size = new THREE.Vector3();
@@ -2243,19 +2268,29 @@ new FBXLoader().load(
     gsap.to(camT, { z: 7.5, duration: 2.8, ease: 'power2.out', delay: 0.4 });
 
     setTimeout(() => {
-      document.getElementById('loading-screen').classList.add('out');
-      setTimeout(() => document.getElementById('loading-screen').style.display = 'none', 1150);
+      // ✅ DOM VALIDATION: Check loading screen exists
+      const ls = document.getElementById('loading-screen');
+      if (ls) {
+        ls.classList.add('out');
+        setTimeout(() => { ls.style.display = 'none'; }, 1150);
+      }
     }, 350);
   },
   (xhr) => {
     if (xhr.total) {
       const p = Math.round((xhr.loaded / xhr.total) * 100);
-      document.getElementById('load-pct').textContent = `Loading heart… ${p}%`;
+      // ✅ DOM VALIDATION: Check element exists before accessing
+      const loadPct = document.getElementById('load-pct');
+      if (loadPct) loadPct.textContent = `Loading heart… ${p}%`;
     }
   },
   (err) => {
+    // ✅ Clear timeout on error
+    clearTimeout(heartLoadTimeout);
     console.error('FBX load error:', err);
-    document.getElementById('load-pct').textContent = 'Load failed — try refreshing';
+    // ✅ DOM VALIDATION: Check element exists before accessing
+    const loadPct = document.getElementById('load-pct');
+    if (loadPct) loadPct.textContent = 'Load failed — try refreshing';
     const ls = document.getElementById('loading-screen');
     if (ls) {
       ls.classList.add('out');
@@ -2560,8 +2595,13 @@ function resetAllPanels() {
 
 // ╔════════════════════════════════════════════════════════════════╗
 // ║ SINGLE TAB GUARANTEE: Only ONE tab visible at any time       ║
+// ║ ✅ ATOMIC UPDATE LOCK: Prevents race conditions              ║
 // ╚════════════════════════════════════════════════════════════════╝
+let stateUpdateLock = false;
+
 function applySegmentState(id, localProgress) {
+  // ✅ ATOMIC LOCK: Prevent re-entrance during fast scroll
+  if (stateUpdateLock) return;
   if (!heartReady) return;
 
   const el = els[id];
@@ -2570,7 +2610,11 @@ function applySegmentState(id, localProgress) {
   const aData = anatomy.find(a => a.id === id);
   if (!aData) return;
 
-  // ✅ IGLOO RULE: FIRST ensure ALL other tabs are hidden
+  // ✅ SET LOCK - Begin atomic update
+  stateUpdateLock = true;
+
+  try {
+    // ✅ IGLOO RULE: FIRST ensure ALL other tabs are hidden
   anatomy.forEach(a => {
     if (a.id === id) return; // Skip the active one
     const otherEl = els[a.id];
@@ -2649,6 +2693,10 @@ function applySegmentState(id, localProgress) {
   if (b) {
     b.mat.opacity = 1.0;
     b.mesh.scale.set(3.5, 3.5, 3.5);
+  }
+  } finally {
+    // ✅ RELEASE LOCK - Always unlock after update
+    stateUpdateLock = false;
   }
 }
 
