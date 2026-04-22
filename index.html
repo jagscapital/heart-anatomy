@@ -2267,14 +2267,27 @@ new FBXLoader().load(
 // ============================================================
 //  LABEL SYSTEM
 // ============================================================
+// ✅ FIX: Safe DOM element access with validation
 const overlay = document.getElementById('label-overlay');
 const svgEl   = document.getElementById('line-svg');
+
+// ✅ DEFENSIVE: Validate critical DOM elements exist
+if (!overlay || !svgEl) {
+  console.error('⚠️ CRITICAL: Missing DOM elements (label-overlay or line-svg)');
+}
+
 const els     = {};
 const TAB_W   = 242; // ✅ FIXED: Must match .a-tab { width: 242px } in CSS
 const TAB_MAX_W = Math.min(400, window.innerWidth * 0.28); // ✅ Hard size limit: 28vw or 400px max
 const cardMeshes3D = {}; // 3D world-space anatomy cards
 
 function buildLabels() {
+  // ✅ FIX: Validate DOM elements exist before building labels
+  if (!overlay || !svgEl) {
+    console.error('⚠️ Cannot build labels: overlay or svgEl missing');
+    return;
+  }
+
   anatomy.forEach(a => {
     const dot = document.createElement('div');
     dot.className = 'a-dot';
@@ -2495,11 +2508,13 @@ function resetAllPanels() {
     // ✅ TAB HARD RESET — wipe transform, size, classes, visibility
     if (el.tab) {
       el.tab.style.opacity = '0';
+      el.tab.style.display = 'none';  // ✅ FIX: Explicitly hide with display
+      el.tab.style.visibility = 'hidden';  // ✅ FIX: Double protection
       el.tab.style.transform = 'translateY(20px) scale(0.9)';
       el.tab.style.width = `${Math.min(TAB_W, TAB_MAX_W)}px`;
       el.tab.style.maxWidth = '28vw';
-      // ✅ Don't use display: none here - let applySegmentState control visibility
-      el.tab.classList.remove('show', 'active');
+      // ✅ FIX: Remove backface class to prevent CSS override
+      el.tab.classList.remove('show', 'active', 'backface');
     }
 
     if (el.line) {
@@ -2588,6 +2603,8 @@ function applySegmentState(id, localProgress) {
 
   // ✅ 3. TAB - SINGLE tab visible with enforced size limits
   if (el.tab) {
+    // ✅ CRITICAL FIX: Remove backface class FIRST (CSS would override visibility)
+    el.tab.classList.remove('backface');
     el.tab.style.display = 'block';
     el.tab.style.visibility = 'visible';
     el.tab.style.opacity = '1';
@@ -3214,6 +3231,12 @@ function setupScroll() {
         lastSegmentIndex = currentSegment;
       }
 
+      // ✅ FIX: Bounds validation before anatomy array access
+      if (currentSegment < 0 || currentSegment >= N) {
+        console.warn(`⚠️ Invalid currentSegment: ${currentSegment} (N=${N})`);
+        return;
+      }
+
       // Apply SINGLE active segment state (pure function)
       const currentAnatomy = anatomy[currentSegment];
       if (currentAnatomy) {
@@ -3632,10 +3655,14 @@ function setupFinale() {
       envOverlay.style.backgroundColor = 'transparent';
       finaleOverlayEl.style.visibility = 'visible';
 
-      // Dispose 3D anatomy cards — no longer needed in finale
+      // ✅ FIX: Safe disposal of 3D anatomy cards
       Object.values(cardMeshes3D).forEach(c => {
-        scene.remove(c.mesh);
-        c.tex.dispose(); c.mat.dispose(); c.geo.dispose();
+        // ✅ Validate object has required properties
+        if (!c) return;
+        if (c.mesh && scene) scene.remove(c.mesh);
+        if (c.tex && c.tex.dispose) c.tex.dispose();
+        if (c.mat && c.mat.dispose) c.mat.dispose();
+        if (c.geo && c.geo.dispose) c.geo.dispose();
       });
 
       // FBX heart hides permanently for the duration of the finale —
