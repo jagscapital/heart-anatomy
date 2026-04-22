@@ -1174,6 +1174,8 @@ import { ShaderPass }           from 'three/addons/postprocessing/ShaderPass.js'
 import { FXAAShader }           from 'three/addons/shaders/FXAAShader.js';
 import { OutputPass }           from 'three/addons/postprocessing/OutputPass.js';
 
+const IS_MOBILE = window.innerWidth < 768;
+
 // ============================================================
 //  GSAP + LENIS
 // ============================================================
@@ -1183,7 +1185,7 @@ gsap.ticker.lagSmoothing(0);
 
 // Lenis — Active Theory heavy config (weighted, viscous feel)
 const lenis = new Lenis({
-  duration:        1.6,
+  duration:        IS_MOBILE ? 1.0 : 1.6,
   easing:          (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
   smoothWheel:     true,
   wheelMultiplier: 0.88,
@@ -1256,8 +1258,6 @@ let mouseParaX = 0, mouseParaY = 0; // smoothed for heart tilt
   })();
 }
 
-const IS_MOBILE = window.innerWidth < 768;
-
 // ============================================================
 //  RENDERER  (antialias:false — FXAA post-pass instead)
 // ============================================================
@@ -1318,11 +1318,10 @@ const chromaPass = new ShaderPass({
     varying vec2 vUv;
     void main() {
       vec2 dir = vUv - 0.5;
+      vec4 center = texture2D(tDiffuse, vUv);
       float r = texture2D(tDiffuse, vUv + dir * uStrength * 1.5).r;
-      float g = texture2D(tDiffuse, vUv).g;
       float b = texture2D(tDiffuse, vUv - dir * uStrength * 1.5).b;
-      float a = texture2D(tDiffuse, vUv).a; // preserve alpha — never stomp to 1.0
-      gl_FragColor = vec4(r, g, b, a);
+      gl_FragColor = vec4(r, center.g, b, center.a);
     }
   `,
 });
@@ -1394,7 +1393,7 @@ const scene  = new THREE.Scene();
 scene.background = null; // transparent — CSS gradient shows through
 // No fog — it was killing the particles entirely
 
-const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.01, 300);
+const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.05, 150);
 camera.position.set(0, 0, 7.5); // start INSIDE the ribcage barrel — no bright-rib trance on load
 
 renderPass.scene  = scene;
@@ -1995,6 +1994,7 @@ const sonarRingMat = new THREE.MeshBasicMaterial({
   color: 0xff0033, transparent: true, opacity: 0, depthWrite: false,
 });
 const sonarRing = new THREE.Mesh(sonarRingGeo, sonarRingMat);
+sonarRing.renderOrder = 9;
 scene.add(sonarRing);
 let sonarT = 0; // 0..1 ring expansion phase
 
@@ -2079,8 +2079,9 @@ new FBXLoader().load(
       if (!pts) return;
       const curve = new THREE.CatmullRomCurve3(pts);
 
-      const tubeMat = new THREE.MeshBasicMaterial({
+      const tubeMat = new THREE.MeshStandardMaterial({
         color:       new THREE.Color(a.color),
+        emissive:    new THREE.Color(a.color).multiplyScalar(0.4),
         transparent: true,
         opacity:     0,
         depthWrite:  false,
@@ -2252,7 +2253,12 @@ new FBXLoader().load(
   },
   (err) => {
     console.error('FBX load error:', err);
-    document.getElementById('load-pct').textContent = 'Load failed — check console';
+    document.getElementById('load-pct').textContent = 'Load failed — try refreshing';
+    const ls = document.getElementById('loading-screen');
+    if (ls) {
+      ls.classList.add('out');
+      setTimeout(() => { ls.style.display = 'none'; }, 1000);
+    }
   }
 );
 
@@ -2323,7 +2329,12 @@ function _rrect(ctx, x, y, w, h, r) {
 
 function buildAnatomyCards3D() {
   anatomy.forEach(a => {
-    const CW = 1024, CH = 576;
+    // IGLOO PROTOCOL FIX: Panel sizing — max 28vw, responsive
+    // Canvas uses 2x resolution for retina (1024→adaptive based on viewport)
+    const maxCardWidthVw = 0.28; // 28% of viewport width (Igloo max)
+    const targetWidthPx  = Math.min(512, window.innerWidth * maxCardWidthVw);
+    const CW = targetWidthPx * 2; // 2x for retina clarity
+    const CH = CW * 0.5625; // maintain 16:9 aspect ratio
     const cv  = document.createElement('canvas');
     cv.width  = CW; cv.height = CH;
     const ctx = cv.getContext('2d');
@@ -2335,7 +2346,7 @@ function buildAnatomyCards3D() {
 
     // Left red accent bar
     ctx.fillStyle = '#e8233a';
-    ctx.fillRect(4, 4, 7, CH - 8);
+    ctx.fillRect(4, 4, 11, CH - 8);
 
     // Border
     ctx.strokeStyle = 'rgba(232, 35, 58, 0.38)';
@@ -2343,7 +2354,7 @@ function buildAnatomyCards3D() {
     _rrect(ctx, 4, 4, CW - 8, CH - 8, 20); ctx.stroke();
 
     // Anatomy name — scale font to canvas width for consistent proportions
-    const titleSize = Math.max(48, Math.round(CW * 0.074)); // 76px at 1024, scales down proportionally
+    const titleSize = Math.max(48, Math.round(CW * 0.074)); // Adaptive sizing
     ctx.fillStyle = '#ffffff';
     ctx.font = `bold ${titleSize}px "Barlow Condensed", Arial, sans-serif`;
     ctx.fillText(a.name.toUpperCase(), 40, 96);
@@ -2373,7 +2384,11 @@ function buildAnatomyCards3D() {
     tex.minFilter = THREE.LinearFilter; // CanvasTexture doesn't support runtime mipmaps
     tex.generateMipmaps = false;
     tex.anisotropy = renderer.capabilities.maxAnisotropy; // anisotropic filtering instead
-    const geo = new THREE.PlaneGeometry(2.0, 1.125);
+
+    // IGLOO FIX: Geometry scaled to match canvas aspect (responsive to viewport)
+    const worldWidth = 2.0 * (targetWidthPx / 512); // scale from baseline 512px → 2.0 units
+    const worldHeight = worldWidth * 0.5625;
+    const geo = new THREE.PlaneGeometry(worldWidth, worldHeight);
     const mat = new THREE.MeshBasicMaterial({
       map: tex, transparent: true, opacity: 0, depthWrite: false,
       side: THREE.DoubleSide,
@@ -2451,29 +2466,32 @@ function updateLabelPositions() {
 
 function showLabel(id) {
   const el = els[id];
-  if (!el || el.active) return;
-  if (!heartReady) return;
+  if (!el || !heartReady) return;
+
+  // PROTOCOL 3 FIX: Remove el.active check - rebuild state from scroll position
+  // This ensures bidirectional scroll works (no state memory)
+  if (el.active) return; // ← Keep minimal guard to prevent duplicate GSAP tweens
   el.active = true;
 
   const aData = anatomy.find(a => a.id === id);
 
   // ── 0. VESSEL SIGNAL — blood travels from cardiac root → anatomy endpoint ──
   // Fires immediately — arrives at dot just as dot pops (0.5s travel)
-  const v = vesselMap[id];
-  if (v) {
-    gsap.to(v.tubeMat, { opacity: 0.55, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
-    gsap.to(v.sigMat,  { opacity: 1.0,  duration: 0.15, ease: 'power2.out', overwrite: 'auto' });
+  const vessel = vesselMap[id];
+  if (vessel) {
+    gsap.to(vessel.tubeMat, { opacity: 0.55, duration: 0.35, ease: 'power2.out', overwrite: 'auto' });
+    gsap.to(vessel.sigMat,  { opacity: 1.0,  duration: 0.15, ease: 'power2.out', overwrite: 'auto' });
     // Signal sphere travels from first point to last point of the vessel curve
     const tProxy = { t: 0 };
-    const endPt  = v.curve.getPoint(1);
+    const endPt  = vessel.curve.getPoint(1);
     gsap.to(tProxy, {
       t: 1, duration: 0.50, ease: 'power2.inOut', overwrite: 'auto',
       onUpdate() {
-        v.curve.getPoint(tProxy.t, v.signal.position);
+        vessel.curve.getPoint(tProxy.t, vessel.signal.position);
       },
       onComplete() {
         // Sphere absorbed into beacon — scales down and vanishes
-        gsap.to(v.sigMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
+        gsap.to(vessel.sigMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
       },
     });
   }
@@ -2536,10 +2554,10 @@ function hideLabel(id) {
   }
 
   // Fade out vessel tube
-  const v = vesselMap[id];
-  if (v) {
-    gsap.to(v.tubeMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
-    gsap.to(v.sigMat,  { opacity: 0, duration: 0.15, ease: 'power2.in', overwrite: 'auto' });
+  const vessel = vesselMap[id];
+  if (vessel) {
+    gsap.to(vessel.tubeMat, { opacity: 0, duration: 0.22, ease: 'power2.in', overwrite: 'auto' });
+    gsap.to(vessel.sigMat,  { opacity: 0, duration: 0.15, ease: 'power2.in', overwrite: 'auto' });
   }
 
   // Fade out beacon + contract scale back to resting size
@@ -2552,7 +2570,10 @@ function hideLabel(id) {
   if (activeAnatomyId === id) activeAnatomyId = null;
 }
 function hideAllLabels() {
-  anatomy.forEach(a => hideLabel(a.id));
+  anatomy.forEach(a => {
+    hideLabel(a.id);
+    if (a.el && a.el.tab) a.el.tab.classList.remove('show');
+  });
   activeAnatomyId = null;
   flashLight.intensity = 0;
   sonarRingMat.opacity = 0;
@@ -2998,15 +3019,19 @@ function setupScroll() {
     pinSpacing: true,
     scrub:      0.05,
     onUpdate(self) {
-      scrollProg = self.progress;
+      // PROTOCOL 3 FIX: Clamp progress (anti-skip guard)
+      scrollProg = Math.max(0, Math.min(1, self.progress));
       inSpiral   = true;
+
+      // PROTOCOL 3 FIX: Single source of truth — derive current segment from progress
+      const currentSegment = Math.min(N - 1, Math.floor(scrollProg * N));
 
       // ── Igloo: continuous environment crossfade between adjacent segments ──
       // Compute which segment pair we're between and blend their atmosphere colors.
       // This creates the "world is evolving around me" feel — not discrete jumps,
       // but a living gradient that morphs as you descend.
       if (!inFacts) {
-        const envIdx  = Math.min(N - 1, Math.floor(scrollProg * N));
+        const envIdx  = currentSegment;
         const envFrac = (scrollProg * N) - envIdx;
         const envNext = Math.min(N - 1, envIdx + 1);
         const t       = envFrac * envFrac * (3.0 - 2.0 * envFrac); // smoothstep
@@ -3027,6 +3052,7 @@ function setupScroll() {
         rimLight.intensity = anatomy[envIdx].env.rimInt + (anatomy[envNext].env.rimInt - anatomy[envIdx].env.rimInt) * t;
 
         // ── Segment boundary micro-transition (Igloo environment switch moment) ──
+        // PROTOCOL 1 FIX: Atomic segment transition - environment + panel + HUD sync
         // Gated inside envIdx !== lastEnvIdx — fires once per boundary crossing, not every frame.
         // This prevents per-frame innerHTML reflow and per-frame getElementById lookups.
         if (envIdx !== lastEnvIdx) {
@@ -3042,10 +3068,14 @@ function setupScroll() {
         }
       }
 
+      // PROTOCOL 2 & 3 FIX: Single panel enforcement - hide all, show ONE based on progress
+      // This ensures perfect bidirectional behavior (forward/backward scroll identical)
       anatomy.forEach((a, i) => {
         const start = (i / N);
         const end   = i === N - 1 ? 1.0 : start + DWELL; // last segment includes p=1.0
-        if (scrollProg >= start && scrollProg <= end) {
+
+        if (i === currentSegment && scrollProg >= start && scrollProg <= end) {
+          // ACTIVE SEGMENT: show label
           showLabel(a.id);
           // Sync dot to camera unlock — dot updates when camera starts moving, not at segment start
           const localProg = (scrollProg - start) / DWELL;
@@ -3054,7 +3084,6 @@ function setupScroll() {
           // ── Heart pre-rotation: begin rotating toward NEXT anatomy point ──
           // Fires when 80% through current dwell → smooth handoff, no snap on transition
           if (heartReady && i + 1 < N) {
-            const localProg = (scrollProg - start) / DWELL;
             if (localProg >= 0.80) {
               const nextA   = anatomy[i + 1];
               const thisRot = Math.atan2(-a.worldOffset.x, a.worldOffset.z);
@@ -3064,16 +3093,27 @@ function setupScroll() {
             }
           }
         } else {
+          // INACTIVE SEGMENT: hide label (works forward AND backward)
           hideLabel(a.id);
         }
       });
     },
     onEnter() {
       inSpiral = true;
+      // PROTOCOL 1 FIX: Force first segment/panel (anti-skip guard)
+      scrollProg = 0; // ensure we start at beginning
+      lastEnvIdx = -1; // reset for clean boundary detection
+
+      // Reset particle velocities so re-entry doesn't carry stale motion from previous visit
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        pVelocities[i] = { x: (Math.random()-0.5)*0.004, y: (Math.random()-0.5)*0.004, z: (Math.random()-0.5)*0.0015 };
+        pVelData[i] = 0;
+      }
       nav.classList.add('visible');
       frostOverlay.classList.add('active');
       setTimeout(() => frostOverlay.classList.remove('active'), 700);
       if (coordTL) coordTL.innerHTML = `SYS · HRT-A1<br/>${anatomy[0].name.toUpperCase()}`;
+
       // Cinematic entry — camera pushes in dramatically to first anatomy position
       const first = anatomy[0].camPos;
       gsap.killTweensOf(camT);
@@ -3083,11 +3123,14 @@ function setupScroll() {
         ease: 'power3.inOut',
         overwrite: true,
       });
+
+      // PROTOCOL 1 FIX: Atomic first-segment setup (environment + panel + HUD sync)
       const [r, g, b, a] = anatomy[0].env.overlayRgba;
       envOverlay.style.backgroundColor = `rgba(${r},${g},${b},${a})`;
       rimLight.color.setHex(anatomy[0].env.rimColor);
       rimLight.intensity = anatomy[0].env.rimInt;
-      // Set lastEnvIdx=0 immediately to prevent false boundary frost at p=0
+
+      // Force first panel visible immediately (prevents skip on fast scroll)
       lastEnvIdx = 0;
       showLabel(anatomy[0].id);
       setActivePDot(0);
@@ -3213,6 +3256,7 @@ function setupFactsSection() {
 
   function animateIn() {
     overlay.classList.add('visible');
+    void overlay.offsetHeight; // Force reflow — iOS Safari requires this to clear cached touch targets
     gsap.fromTo(heading, { opacity: 0 }, { opacity: 1, duration: 0.45, ease: 'power2.out', overwrite: true });
     // Descend ring in from above — matches the staircase-descent direction
     gsap.fromTo(ring, { y: -50 }, { y: 0, duration: 0.6, ease: 'back.out(1.3)', overwrite: true });
@@ -3233,7 +3277,7 @@ function setupFactsSection() {
     pinSpacing: true,
     scrub:      0.4,
     onEnter() {
-      factsActive = true; inFacts = true;
+      factsActive = true; inFacts = true; inSpiral = false;
       gsap.to(camT, { z: 8.5, duration: 0.8, ease: 'power2.out' });
       // Pre-set card 0 so onUpdate doesn't cancel the slide-in animation
       gsap.set(ring, { rotateY: 0, y: -50 });
@@ -3248,7 +3292,7 @@ function setupFactsSection() {
       camT.z = 7.5; camT.y = 0.0;
     },
     onEnterBack() {
-      factsActive = true; inFacts = true;
+      factsActive = true; inFacts = true; inSpiral = false;
       gsap.to(camT, { z: 8.5, duration: 0.5, ease: 'power2.out' });
       gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
@@ -3305,7 +3349,7 @@ function _finaleCleanup(resetCam) {
   if (sssMat)   sssMat.opacity   = 0.22;
   if (humanGroup) {
     humanGroup.visible = false;
-    humanGroup.position.y = -1.0;
+    humanGroup.position.y = -0.3;
     humanMats.forEach(m => { m.opacity = 0; });
   }
   if (thumbsUpGroup) {
@@ -3324,16 +3368,20 @@ function _finaleCleanup(resetCam) {
 function setupFinale() {
   const stageEls = Array.from(document.querySelectorAll('.finale-stage'));
 
-  // Helper: update all assembled segments to match current finaleScale + beat
+  // Helper: update all assembled segments to match current finaleScale + beat + slow spin
   // Called every stage after assembly completes (Stage 2-5)
   function _updateSegmentScale() {
     const fs = finaleScale;
-    // Beat scale from heartGroup (heartbeatScale already ran this frame)
-    const beatScale = heartGroup.scale.x / HEART_BASE_SCALE; // includes beat factor
+    const beatScale = heartGroup.scale.x / HEART_BASE_SCALE;
+    const spin = elapsed * 0.18;
+    const cos = Math.cos(spin), sin = Math.sin(spin);
     heartSegMeshes.forEach(s => {
       s.mesh.visible = true;
-      s.mesh.position.copy(s.assembledPos).multiplyScalar(fs);
-      s.mesh.scale.setScalar(beatScale); // pulse with the heartbeat
+      const ap = s.assembledPos;
+      const rx = ap.x * cos - ap.z * sin;
+      const rz = ap.x * sin + ap.z * cos;
+      s.mesh.position.set(rx * fs, ap.y * fs, rz * fs);
+      s.mesh.scale.setScalar(beatScale);
     });
   }
 
@@ -3357,6 +3405,12 @@ function setupFinale() {
       nav.classList.remove('visible');
       envOverlay.style.backgroundColor = 'transparent';
       finaleOverlayEl.style.visibility = 'visible';
+
+      // Dispose 3D anatomy cards — no longer needed in finale
+      Object.values(cardMeshes3D).forEach(c => {
+        scene.remove(c.mesh);
+        c.tex.dispose(); c.mat.dispose(); c.geo.dispose();
+      });
 
       // FBX heart hides permanently for the duration of the finale —
       // assembled segments ARE the heart from this point forward.
@@ -3469,10 +3523,10 @@ function setupFinale() {
 
         if (humanGroup) {
           humanGroup.visible = true;
-          humanGroup.position.y = THREE.MathUtils.lerp(-12, -1.0, s4Ease);
+          humanGroup.position.y = THREE.MathUtils.lerp(-12, -0.3, s4Ease);
           humanMats.forEach(m => {
             const target = m.userData.maxOp ?? 0.88;
-            m.opacity = Math.max(0, Math.min(target, s4Ease * (target + 0.15)));
+            m.opacity = Math.min(target, s4Ease * target);
           });
         }
 
@@ -3491,14 +3545,14 @@ function setupFinale() {
 
         if (humanGroup) {
           humanGroup.visible = true;
-          humanGroup.position.y = -1.0;
+          humanGroup.position.y = -0.3;
           humanMats.forEach(m => { m.opacity = m.userData.maxOp ?? 0.88; });
         }
 
         if (s5 >= 0.20 && !thumbsUpDone && thumbsUpGroup) {
           thumbsUpDone = true;
           gsap.to(thumbsUpGroup.rotation, {
-            z: Math.PI * 0.85,
+            z: Math.PI * 0.50,
             duration: 0.85,
             ease: 'back.out(1.3)',
           });
@@ -3506,7 +3560,7 @@ function setupFinale() {
       }
 
       // ── Bloom crescendo: 0.28 at start → 1.10 at end ────────
-      bloom.strength = 0.28 + p * 0.82;
+      bloom.strength = Math.min(1.0, 0.28 + p * p * 0.82);
 
       // ── Stage text overlays ─────────────────────────────────
       stageEls.forEach((el, i) => {
@@ -3765,22 +3819,10 @@ let chromaVelocity = 0;
       heartGroup.rotation.x = THREE.MathUtils.damp(heartGroup.rotation.x, -0.04, 2.2, dt);
       heartGroup.rotation.z = THREE.MathUtils.damp(heartGroup.rotation.z, 0,     2.2, dt);
 
-      // Slowly rotate assembled segments once assembly is done — prevents static look
-      if (segmentsAssembled) {
-        const slowSpin = elapsed * 0.18; // ~10s per revolution
-        heartSegMeshes.forEach(s => {
-          if (!s.mesh.visible) return;
-          // Rotate each segment around the world Y axis (simulate heartGroup rotation)
-          const ap = s.assembledPos;
-          const cos = Math.cos(slowSpin), sin = Math.sin(slowSpin);
-          const rx  = ap.x * cos - ap.z * sin;
-          const rz  = ap.x * sin + ap.z * cos;
-          const fs  = finaleScale;
-          s.mesh.position.set(rx * fs, ap.y * fs, rz * fs);
-        });
-      }
+      // Continuously sync segment positions with beat + spin every frame
+      if (segmentsAssembled) _updateSegmentScale();
     }
-    if (!iglooAnimating) heartbeatScale(dt);
+    if (!iglooAnimating && (inFinale ? segmentsAssembled : true)) heartbeatScale(dt);
   }
 
   // Camera target — Active Theory descent path drives camT when in spiral
@@ -3805,6 +3847,9 @@ let chromaVelocity = 0;
       const targetLookY = aData.worldOffset.y * HEART_BASE_SCALE;
       camLookAt.y = THREE.MathUtils.damp(camLookAt.y, targetLookY, 2.5, dt);
     }
+  } else if (inFinale) {
+    // Track human figure center during finale — camera at y=-1.5 must look at figure, not origin
+    camLookAt.y = THREE.MathUtils.damp(camLookAt.y, -0.8, 2.2, dt);
   } else {
     camLookAt.y = THREE.MathUtils.damp(camLookAt.y, 0, 3.0, dt);
   }
@@ -3878,28 +3923,32 @@ let chromaVelocity = 0;
 // ============================================================
 window.addEventListener('resize', () => {
   const w = window.innerWidth, h = window.innerHeight;
+  const newDPR = Math.min(window.devicePixelRatio, 2);
+  if (newDPR !== renderer.getPixelRatio()) renderer.setPixelRatio(newDPR);
   camera.aspect = w / h;
   camera.updateProjectionMatrix();
   renderer.setSize(w, h);
   composer.setSize(w, h);
   fxaaPass.uniforms['resolution'].value.set(
-    1 / (w * DPR),
-    1 / (h * DPR)
+    1 / (w * newDPR),
+    1 / (h * newDPR)
   );
-  // Reposition 3D cards to match new aspect ratio
-  const newMaxX = Math.min(2.4, (w / h) * 1.6);
-  anatomy.forEach(a => {
-    const c = cardMeshes3D[a.id];
-    if (c) c.mesh.position.x = a.side === 'right' ? newMaxX : -newMaxX;
-  });
+  // Reposition 3D cards to match new aspect ratio (guard: anatomy+cards may not be built yet)
+  if (anatomy && anatomy.length) {
+    const newMaxX = Math.min(2.4, (w / h) * 1.6);
+    anatomy.forEach(a => {
+      const c = cardMeshes3D[a.id];
+      if (c && c.mesh) c.mesh.position.x = a.side === 'right' ? newMaxX : -newMaxX;
+    });
+  }
 });
 
 window.addEventListener('beforeunload', () => {
   Object.values(cardMeshes3D).forEach(c => {
-    c.tex.dispose();
-    c.mat.dispose();
-    c.geo.dispose();
+    c.tex.dispose(); c.mat.dispose(); c.geo.dispose();
   });
+  scene.remove(particleSystem); particleGeo.dispose(); particleMat.dispose();
+  crystalData.forEach(m => { m.geometry.dispose(); m.material.dispose(); });
 });
 </script>
 </body>
