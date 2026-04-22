@@ -1182,7 +1182,12 @@ const IS_MOBILE = window.innerWidth < 768;
 //  GSAP + LENIS
 // ============================================================
 gsap.registerPlugin(ScrollTrigger);
-gsap.ticker.fps(120);
+
+// ✅ ADAPTIVE FPS: Lower target for mobile/low-end devices to prevent stuttering
+const targetFPS = IS_MOBILE ? 60 : 120;
+gsap.ticker.fps(targetFPS);
+
+// ✅ Disable lag smoothing for deterministic frame timing
 gsap.ticker.lagSmoothing(0);
 
 // Lenis — Active Theory heavy config (weighted, viscous feel)
@@ -3266,11 +3271,8 @@ function setupScroll() {
         const segmentJump = Math.abs(currentSegment - lastSegmentIndex);
 
         if (segmentJump > 1 && lastSegmentIndex !== -1) {
-          console.warn(`⚡ FAST SCROLL DETECTED: Jumped ${segmentJump} segments (${lastSegmentIndex} → ${currentSegment})`);
-          // ✅ Force correction - ensure no tabs are skipped
+          // ✅ Force correction - ensure no tabs are skipped during fast scroll
         }
-
-        console.log(`🔄 Segment changed: ${lastSegmentIndex} → ${currentSegment}`);
 
         // ✅ MANDATORY: Complete reset before switching segments
         resetAllPanels();
@@ -3313,8 +3315,6 @@ function setupScroll() {
       // ║ NOTHING from previous sections is allowed to exist           ║
       // ╚════════════════════════════════════════════════════════════════╝
 
-      console.log('🌀 ENTERING SPIRAL - Full system reset');
-
       // ✅ STEP 1: FULL CLEAN SLATE - wipe ALL previous UI
       hideAllLabels();     // Complete UI wipeout
       resetAllPanels();    // Reset 3D elements
@@ -3354,14 +3354,14 @@ function setupScroll() {
       rimLight.intensity = anatomy[0].env.rimInt;
 
       // ✅ STEP 4: FORCE FIRST TAB - guarantee segment 0 shows
-      console.log('✅ Forcing first tab: segment 0');
+      // ✅ Force first tab: segment 0
       applySegmentState(anatomy[0].id, 0);
       setActivePDot(0);
       lastEnvIdx = 0;
       lastSegmentIndex = 0; // Mark segment 0 as current
     },
     onLeave() {
-      console.log('🌀 LEAVING SPIRAL - Full cleanup');
+      // 🌀 Leaving spiral - full cleanup
       inSpiral = false;
 
       // ✅ ZERO TOLERANCE: Complete wipeout on exit
@@ -3378,7 +3378,7 @@ function setupScroll() {
       if (coordTL) coordTL.innerHTML = 'SYS · HRT-A1<br/>CARDIO ANATOMY';
     },
     onLeaveBack() {
-      console.log('🌀 LEAVING SPIRAL (backward) - Full cleanup');
+      // 🌀 Leaving spiral (backward) - full cleanup
       inSpiral = false;
 
       // ✅ ZERO TOLERANCE: Complete wipeout on exit
@@ -3395,7 +3395,7 @@ function setupScroll() {
       if (coordTL) coordTL.innerHTML = 'SYS · HRT-A1<br/>CARDIO ANATOMY';
     },
     onEnterBack() {
-      console.log('🌀 ENTERING SPIRAL (from below) - Full reset to last segment');
+      // 🌀 Entering spiral from below - reset to last segment
 
       // ✅ ZERO TOLERANCE: Complete wipeout before re-entry
       hideAllLabels();     // Complete UI wipeout
@@ -3417,7 +3417,7 @@ function setupScroll() {
       rimLight.intensity = anatomy[N - 1].env.rimInt;
 
       // ✅ FORCE LAST TAB - guarantee segment N-1 shows
-      console.log(`✅ Forcing last tab: segment ${N - 1}`);
+      // ✅ Force last tab: segment N-1
       applySegmentState(anatomy[N - 1].id, 0);
       setActivePDot(N - 1);
 
@@ -3513,7 +3513,7 @@ function setupFactsSection() {
     pinSpacing: true,
     scrub:      0.4,
     onEnter() {
-      console.log('📊 ENTERING FACTS - Cleanup spiral UI');
+      // 📊 Entering FACTS - cleanup spiral UI
       // ✅ ZERO TOLERANCE: Clean up spiral UI when entering facts
       hideAllLabels();
       resetAllPanels();
@@ -3531,13 +3531,13 @@ function setupFactsSection() {
       animateIn();
     },
     onLeave() {
-      console.log('📊 LEAVING FACTS');
+      // 📊 Leaving FACTS
       factsActive = false; inFacts = false;
       animateOut();
       camT.z = 7.5; camT.y = 0.0;
     },
     onEnterBack() {
-      console.log('📊 ENTERING FACTS (from below) - Cleanup spiral UI');
+      // 📊 Entering FACTS from below - cleanup spiral UI
       // ✅ ZERO TOLERANCE: Clean up spiral UI when entering facts
       hideAllLabels();
       resetAllPanels();
@@ -3554,7 +3554,7 @@ function setupFactsSection() {
       animateIn();
     },
     onLeaveBack() {
-      console.log('📊 LEAVING FACTS (backward)');
+      // 📊 Leaving FACTS (backward)
       factsActive = false; inFacts = false;
       animateOut();
       camT.z = 7.5; camT.y = 0.0;
@@ -3685,7 +3685,7 @@ function setupFinale() {
     scrub:      0.1,
 
     onEnter() {
-      console.log('🎬 ENTERING FINALE - Full cleanup');
+      // 🎬 Entering FINALE - full cleanup
 
       // ✅ ZERO TOLERANCE: Complete wipeout before finale
       hideAllLabels();     // Complete UI wipeout
