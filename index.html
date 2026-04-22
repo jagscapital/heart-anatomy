@@ -3142,7 +3142,13 @@ function setupScroll() {
       const rawSegment = Math.floor(scrollProg * N);
       const currentSegment = Math.max(0, Math.min(N - 1, rawSegment));
       const segStart = currentSegment / N;
-      const localProgress = Math.max(0, Math.min(1, (scrollProg - segStart) / DWELL));
+      let localProgress = Math.max(0, Math.min(1, (scrollProg - segStart) / DWELL));
+
+      // ✅ DEFENSIVE: Validate localProgress (mathematically safe but defensive)
+      if (!isFinite(localProgress)) {
+        console.warn('⚠️ Invalid localProgress:', localProgress);
+        localProgress = 0;
+      }
 
       // ═══════════════════════════════════════════════════════════════
       // PHASE 1: RESET ALL STATE (wipe slate clean)
@@ -3442,7 +3448,10 @@ function setupFactsSection() {
       resetAllPanels();
 
       factsActive = true; inFacts = true; inSpiral = false;
-      gsap.to(camT, { z: 8.5, duration: 0.8, ease: 'power2.out' });
+
+      // ✅ FIX: Kill any ongoing camera tweens before new animation
+      gsap.killTweensOf(camT);
+      gsap.to(camT, { z: 8.5, duration: 0.8, ease: 'power2.out', overwrite: true });
       // Pre-set card 0 so onUpdate doesn't cancel the slide-in animation
       gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
@@ -3463,7 +3472,10 @@ function setupFactsSection() {
       resetAllPanels();
 
       factsActive = true; inFacts = true; inSpiral = false;
-      gsap.to(camT, { z: 8.5, duration: 0.5, ease: 'power2.out' });
+
+      // ✅ FIX: Kill any ongoing camera tweens before new animation
+      gsap.killTweensOf(camT);
+      gsap.to(camT, { z: 8.5, duration: 0.5, ease: 'power2.out', overwrite: true });
       gsap.set(ring, { rotateY: 0, y: -50 });
       currentActive = 0;
       cardEls.forEach(c => c.classList.remove('active'));
